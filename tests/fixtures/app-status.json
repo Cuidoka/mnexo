@@ -1,0 +1,7 @@
+{
+  "appVersion": "0.1.0",
+  "backendStatus": "ready",
+  "databaseStatus": "ready",
+  "schemaVersion": 1,
+  "assistantStatus": "disabled"
+}

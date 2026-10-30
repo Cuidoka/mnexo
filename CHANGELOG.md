@@ -1,0 +1,30 @@
+# Changelog
+
+## Em desenvolvimento — 2026-10-29
+
+### MVP-002 — SQLite e migração (RNF-004)
+
+- Adicionado SQLite incorporado via rusqlite e migração 001 para a base `sources`/`nodes` vazia, com FKs e checks básicos; nenhuma fonte é adicionada ou autorizada automaticamente.
+- Implementadas transação de migração, identificação do banco, versão persistida e recusa de arquivos inválidos, desconhecidos ou mais novos sem recriação.
+- Atualizado `get_app_status` para consultar o banco em worker e retornar disponibilidade e schema reais; atualizado o contrato Rust/TypeScript e suas fixtures no mesmo incremento.
+- Interface distingue banco pronto/indisponível e permite nova tentativa, sem expor caminhos ou erros internos.
+- Adicionados testes T-028/T-029 de persistência, integridade, FKs, precisão, concorrência e rollback e T-030 de FTS5 sintético. T-008 tem cobertura parcial do banco.
+- Verificados executável release, banco interno vazio e reabertura com status pronto por acessibilidade (T-031); captura visual/clique limitados por falha da ferramenta, registrada no relatório.
+- Banco de ideias, FTS do produto, seleção de pasta (MVP-003), scanner e IA permanecem fora deste incremento.
+
+Resultados reais de validação: `docs/08_TESTES_E_CRITERIOS.md`. Decisões de implementação: ADR 0002, **proposto**.
+
+## 0.1.0 — 2026-10-29
+
+### MVP-001 — fundação desktop
+
+- Adicionados shell Tauri 2, React/TypeScript/Vite e tela Fontes.
+- Implementado `get_app_status` sem I/O, com versão, banco não inicializado, schema ausente e IA desativada.
+- Restringido o comando à janela principal por manifesto, permissão e capability explícitos; configurada CSP local.
+- Adicionados tratamento de falha e nova tentativa, distinção entre navegador e aplicativo desktop e testes T-025/T-026.
+- Validada a janela release e a chamada real ao Rust (T-027); ajustado o estado vazio para manter o diagnóstico visível na abertura.
+- Adicionados comandos de format, lint, testes e build; lockfiles, orientação de setup e ADR proposto.
+- RF-001 continua pendente: a tela prepara o espaço Fontes, mas não autoriza ou indexa pastas.
+- Os documentos originais permanecem preservados; SQLite (MVP-002), cena 3D e IA ficam fora deste incremento.
+
+Resultados reais de validação e limitações: `docs/08_TESTES_E_CRITERIOS.md`.
