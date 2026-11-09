@@ -1,7 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Somente a janela principal pode consultar o status público.",
+  "description": "Janela principal: status e autorização explícita de fontes locais.",
   "windows": ["main"],
-  "permissions": ["allow-get-app-status"]
+  "permissions": [
+    "allow-get-app-status",
+    "allow-choose-scan-source",
+    "allow-cancel-scan-source-selection",
+    "allow-add-scan-source",
+    "allow-list-scan-sources",
+    "allow-revoke-scan-source"
+  ]
 }

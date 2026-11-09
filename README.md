@@ -4,11 +4,23 @@ Aplicativo desktop em desenvolvimento para conectar arquivos reais e conheciment
 
 ## Estado real
 
-Incremento atual: **MVP-002 — persistência SQLite**, sobre a fundação MVP-001. A primeira tela é **Fontes** e consulta o backend local; possui carregamento, erro sanitizado e nova tentativa. O backend abre o SQLite local, aplica a migração inicial e informa a versão de schema realmente lida do banco.
+Incremento atual: **MVP-003 / RF-001 — fontes autorizadas**, sobre a fundação e a persistência SQLite. A tela Fontes permite selecionar uma pasta local por diálogo nativo, revisar seu caminho, autorizar, listar e revogar a autorização. As fontes e seu estado são persistidos no banco.
 
 O banco possui a base de catálogo `sources`/`nodes`, inicialmente vazia. O comando retorna `databaseStatus: "ready"` e `schemaVersion: 1` quando o banco está disponível; em falha retorna `"unavailable"` e `null`. A interface distingue falha do banco de falha IPC e permite tentar novamente. IA continua `"disabled"`.
 
-Autorização de pastas, indexação, edição de ideias, busca do produto, 3D e integração de IA **ainda não estão implementados**. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
+Indexação, edição de ideias, busca do produto, 3D e integração de IA **ainda não estão implementados**. Autorizar não inicia varredura. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
+
+## Adicionar e revogar uma fonte
+
+1. Na janela desktop, aguarde o banco ficar “Pronto” e clique **Selecionar pasta**.
+2. Escolha uma pasta local existente no diálogo do Windows.
+3. Revise o caminho mostrado e clique **Autorizar pasta**, ou **Cancelar autorização** para descartar a seleção.
+4. A fonte aparecerá como **Autorizada para metadados**. Fechar/reabrir carrega a lista do SQLite, sem consultar o conteúdo das pastas.
+5. **Revogar autorização** desabilita a fonte e mantém a linha como revogada; não apaga arquivos ou registros vinculados. Para autorizar novamente, selecione a pasta outra vez.
+
+A autorização é para metadados dessa raiz. Leitura de conteúdo e envio remoto continuam separados e indisponíveis. Cancelar o diálogo ou a confirmação não persiste uma fonte. Selecionar novamente o mesmo caminho canônico reutiliza o ID; nenhuma fonte é adicionada na inicialização.
+
+Escopo atual: pastas locais; caminhos UNC/de rede e raízes que sejam links simbólicos/junções são recusados. Não há varredura, abertura de arquivos ou remoção permanente do cadastro. A raiz é validada antes da confirmação e novamente antes da gravação. Links intermediários podem ser resolvidos pela canonicalização; o caminho confirmado na tela é o destino canônico. Renomeações e identidade estável do filesystem continuam no RF-011.
 
 Os requisitos do produto permanecem em [ESPECIFICACAO_COMPLETA.md](ESPECIFICACAO_COMPLETA.md). As decisões expressamente confirmadas estão registradas em [docs/09_DECISOES_PENDENCIAS.md](docs/09_DECISOES_PENDENCIAS.md). Este README descreve comportamento observado na implementação; não transforma propostas técnicas em requisitos aprovados.
 
@@ -81,8 +93,9 @@ Os testes SQLite usam diretórios temporários dentro de `.tools/test-data`, sem
 
 ## Segurança e limites
 
-- O único comando de aplicação é `get_app_status`, sem argumentos de usuário. Sua permissão é concedida somente à janela `main`; a leitura/escrita é limitada ao banco interno pelo código Rust.
-- Não há plugins de filesystem, shell, HTTP, diálogo ou SQL; nenhuma fonte pessoal é enumerada ou lida pelo aplicativo.
+- `get_app_status` mantém o diagnóstico de versão e banco. As operações de dados do aplicativo são executadas no Rust e concedidas somente à janela `main`.
+- Os comandos de fontes são estreitos e permitidos somente na janela `main`: escolha nativa, cancelamento, confirmação por token, listagem e revogação por ID. Nenhum aceita caminho livre ou SQL vindo do frontend.
+- O plugin oficial de diálogo roda pelo Rust; nenhuma permissão genérica de diálogo, filesystem, shell, HTTP ou SQL é concedida ao frontend. O filesystem é consultado apenas para validar a raiz escolhida, sem enumerar seus filhos ou ler conteúdo. O crate filesystem é dependência transitiva do plugin de diálogo, sem permissões concedidas na capability.
 - A interface usa recursos empacotados e fontes do sistema, sem CDN, telemetria, endpoints de IA ou chaves.
 - A CSP de produção permite conexão IPC local. A CSP de desenvolvimento acrescenta somente o servidor Vite no loopback.
 - Instalação de dependências e compilação podem usar rede. Isso é distinto da execução do aplicativo empacotado.
@@ -95,4 +108,4 @@ O ícone provisório foi desenhado como SVG no projeto; o ICO é derivado pelo C
 
 Um repositório Git próprio foi inicializado na branch `codex/mvp-001`; não há commit automático. Os três documentos recebidos foram preservados. O rollback deve reverter somente o código deste incremento após revisão, preservando o banco. Não existe downgrade automático: o MVP-001 não lê ou altera SQLite. Migrações com erro revertem sua transação; nenhuma rotina apaga bancos incompatíveis. Antes de uma evolução futura sobre dados relevantes, será necessário implementar backup consistente e testar restauração.
 
-Próximo incremento mínimo: **MVP-003 / RF-001**, diálogo de pasta, autorização explícita e fonte persistida, sem scan automático.
+Próximo incremento mínimo: **MVP-004 / RF-002**, scanner somente de metadados de uma pasta de fixture autorizada, com relatório de contagens e erros.

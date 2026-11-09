@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SourcesPanel } from '../features/sources/SourcesPanel';
 import {
   DesktopRequiredError,
   getAppStatus,
@@ -9,15 +10,6 @@ type ConnectionState =
   | { kind: 'loading' }
   | { kind: 'ready'; status: AppStatus }
   | { kind: 'error'; desktopRequired: boolean };
-
-function FolderIcon() {
-  return (
-    <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-      <path d="M9 19a5 5 0 0 1 5-5h13l6 7h17a5 5 0 0 1 5 5v23a5 5 0 0 1-5 5H14a5 5 0 0 1-5-5V19Z" />
-      <path d="M10 28h44M25 40h14M32 33v14" />
-    </svg>
-  );
-}
 
 export function App() {
   const [connection, setConnection] = useState<ConnectionState>({
@@ -84,7 +76,7 @@ export function App() {
       <div className="workspace">
         <header className="topbar">
           <span>Seu espaço / Fontes</span>
-          <span className="version-badge">Prévia · Etapa 0</span>
+          <span className="version-badge">Prévia · Fontes</span>
         </header>
 
         <main id="main-content" tabIndex={-1}>
@@ -97,25 +89,12 @@ export function App() {
             </p>
           </div>
 
-          <section className="sources-card" aria-labelledby="sources-title">
-            <div className="section-heading">
-              <h2 id="sources-title">Pastas do computador</h2>
-              <span className="subtle-tag">Em preparação</span>
-            </div>
-            <div className="empty-state">
-              <div className="folder-illustration">
-                <FolderIcon />
-              </div>
-              <h3>Seu espaço ainda está vazio</h3>
-              <p>
-                A conexão de pastas estará disponível em uma próxima etapa. Você
-                escolherá cada fonte antes de qualquer indexação.
-              </p>
-              <span className="privacy-note">
-                Nenhuma pasta é examinada automaticamente.
-              </span>
-            </div>
-          </section>
+          <SourcesPanel
+            available={
+              connection.kind === 'ready' &&
+              connection.status.databaseStatus === 'ready'
+            }
+          />
 
           <section className="status-card" aria-labelledby="status-title">
             <div className="status-heading">

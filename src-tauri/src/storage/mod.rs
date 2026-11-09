@@ -1,4 +1,5 @@
 mod migrations;
+mod sources;
 
 use std::{
     fmt, fs,

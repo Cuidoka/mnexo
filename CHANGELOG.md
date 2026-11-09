@@ -1,5 +1,18 @@
 # Changelog
 
+## Em desenvolvimento — 2026-11-09
+
+### MVP-003 / RF-001 — fontes autorizadas
+
+- Adicionados diálogo nativo de pasta, revisão do caminho e autorização explícita por token volátil de uso único, sem scan automático.
+- Implementadas listagem persistida e revogação não destrutiva. Reautorizar o mesmo caminho canônico preserva ID/data da fonte, sem duplicação.
+- Caminhos e UUIDs são determinados no Rust; o frontend não envia caminho livre, SQL ou comandos do SO. Erros retornam códigos sanitizados.
+- Mantidos schema 1 e dados existentes; nenhuma fonte é cadastrada ou consultada no filesystem automaticamente ao iniciar.
+- Adicionados testes de T-001/T-014 e T-032 a T-034 para consentimento, cancelamento, tokens, revalidação, Unicode, deduplicação, persistência e revogação. Inspeção nativa registrada em T-035.
+- Scanner de metadados permanece no MVP-004 / RF-002. Rede, conteúdo de arquivos, IA e remoção permanente de cadastro continuam fora deste incremento.
+
+Decisões propostas: ADR 0003. Comandos, resultados e limites reais: `docs/08_TESTES_E_CRITERIOS.md`.
+
 ## Em desenvolvimento — 2026-10-29
 
 ### MVP-002 — SQLite e migração (RNF-004)

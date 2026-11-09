@@ -1,6 +1,6 @@
-# Validação — MVP-001 (histórico) e MVP-002 (atual)
+# Validação — histórico e MVP-003 atual
 
-Data: 29/10/2026. Este arquivo registra somente execução real. O histórico abaixo corresponde ao MVP-001; a seção MVP-002 registra a validação atual. Os testes T-001 a T-024 do produto continuam pendentes, com cobertura parcial de persistência de T-008 no MVP-002.
+Histórico: 29/10/2026. Validação atual do MVP-003: 09/11/2026, na seção final. Este arquivo registra somente execução real; as seções anteriores preservam resultados e limitações dos respectivos incrementos. T-008 continua parcial; T-001/T-014 têm a cobertura de fontes descrita no MVP-003.
 
 ## Casos adicionais de fundação
 
@@ -96,3 +96,56 @@ Limite da inspeção: a captura mostrou preto/papel de parede, embora a árvore 
 T-008 cobre parcialmente reabertura do banco com registros sintéticos, sem índice ou editor de ideias. Backup/restauração, interrupção abrupta de energia, conteúdo/FTS do produto, criptografia, normalização de caminhos, hierarquia entre fontes e ciclos longos permanecem fora do incremento. `Pronto` não significa uma auditoria completa de todas as páginas do banco em cada chamada de status.
 
 Não foram executados testes de instalador, outras máquinas, ataque a webview, conexão fisicamente desligada ou servidor `desktop:dev`. O código não expõe comandos genéricos de SQL, filesystem ou rede ao frontend.
+
+## MVP-003 / RF-001 — fontes autorizadas (09/11/2026)
+
+### Casos executados
+
+| ID    | Cobertura real                                                                                                                                                                                                                                        |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-001 | Pasta sintética local escolhida pelo serviço de seleção, confirmação obrigatória, UUID v4 do backend e autorização persistida após reabrir o banco                                                                                                    |
+| T-014 | Revogação persistida preservando cadastro/arquivo e reautorização com o mesmo ID; revogação também funciona com pasta indisponível. Ideias/vínculos não existem como funcionalidade e não foram declarados testados                                   |
+| T-032 | Cancelamento/novo diálogo invalidam tokens, replay e token/caminho inventado não concedem acesso, apenas um picker ativo, rejeição de arquivo/raiz relativa/ausente/UNC, revalidação antes de gravar, erro de banco consome o token                   |
+| T-033 | Caminho equivalente e alias Windows com diferenças de caixa/Unicode não duplicam a fonte; ID/data preservados                                                                                                                                         |
+| T-034 | Fixtures Rust/TS compartilhadas, validação do retorno IPC, estado de carregamento/erro, confirmação e cancelamento na UI, falha ao salvar sem falso sucesso, listagem persistida e revogação                                                          |
+| T-035 | Janela release e diálogo nativo abertos e inspecionados visualmente; fontes existentes recarregadas após reinício. Confirmação/cancelamento/revogação da fixture pela GUI não foram concluídos devido à entrada concorrente detectada pela ferramenta |
+
+Os testes automatizados usam exclusivamente pastas/bancos sintéticos temporários em `.tools/test-data`. A preservação do conteúdo é verificada por comparação de bytes e o cadastro da fonte não insere nenhum nó no índice. Nenhuma fonte é cadastrada na inicialização. O caso de Unicode é exercitado no filesystem local e no banco; abertura de arquivos/preview não faz parte do ticket.
+
+### Comandos e resultados
+
+| Comando                                                                                             | Resultado observado                        |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `pnpm lint`                                                                                         | Passou, com `--max-warnings 0`             |
+| `pnpm typecheck`                                                                                    | Passou                                     |
+| `pnpm test`                                                                                         | 4 arquivos; 42 testes passaram; 0 falhas   |
+| `cargo test --manifest-path src-tauri/Cargo.toml --locked --offline`                                | 27 testes Rust passaram; 0 falhas          |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --all-targets -- -D warnings` | Passou                                     |
+| `pnpm build`                                                                                        | Passou; 21 módulos e assets locais         |
+| `pnpm desktop:build`                                                                                | Passou; executável Windows release gerado  |
+| `pnpm format:check` e `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`                   | Passaram; `git diff --check` também passou |
+
+Rust/Cargo 1.99.1, Node 22.16.0 e pnpm 10.19.0 conferidos neste incremento. O plugin de diálogo é 2.8.4; UUID permaneceu em 1.29.0 no lockfile. Os testes/Clippy Cargo foram executados com `CARGO_INCREMENTAL=0` no processo, conforme a validação anterior. A primeira compilação identificou um lifetime temporário da consulta SQLite, corrigido coletando as linhas antes de encerrar o statement; a execução final passou.
+
+A capability gerada foi inspecionada: apenas janela `main`, origem local, com os seis comandos de aplicação. Não foram concedidas permissões genéricas de filesystem, SQL ou diálogo. O scan segue sem comando/job implementado.
+
+### Inspeção nativa e limite da automação
+
+O executável exibiu a nova tela, banco pronto, seleção de pasta e lista real do SQLite. O botão abriu o diálogo “Selecionar pasta para o MNEXO”, vinculado à janela principal. A inspeção confirmou a aparência e os controles nativos; o picker continua sendo uma interface do SO, inclusive com seus próprios comandos.
+
+Foi criada uma pasta sintética em `.tools/manual-mvp003-*/Pasta de teste ç`, sem conteúdo pessoal. Ao tentar preencher o seletor, a ferramenta detectou entrada concorrente do usuário (`user input was detected in this window; call get_window_state before continuing`). O usuário autorizou continuar o teste; após atualizar/restaurar a janela a condição voltou a ocorrer, impedindo concluir a sequência por automação. Os cliques de confirmação/revogação dessa fixture no executável são **NÃO TESTADOS**; o fluxo completo é coberto nos testes de serviço/SQLite e nos testes da UI com mocks, sem confundir isso com um E2E nativo completo.
+
+O processo do MNEXO foi reiniciado de forma controlada durante a recuperação. O checksum do banco permaneceu igual e os cadastros já existentes reapareceram. A automação não autorizou nem revogou fontes pessoais e não criou cadastro sintético na instância real; os registros existentes foram preservados. A pasta sintética manual fica no workspace ignorado pelo Git para eventual repetição do teste.
+
+### Repetir manualmente
+
+1. Abrir `src-tauri/target/release/mnexo.exe` e selecionar uma pasta de fixture dentro do projeto.
+2. Cancelar o diálogo e conferir que nenhuma fonte nova aparece.
+3. Selecionar novamente; conferir o caminho na revisão. Cancelar a autorização e conferir que não há cadastro.
+4. Selecionar e **Autorizar pasta**. Conferir fonte autorizada e nenhuma varredura iniciada.
+5. Fechar/reabrir e conferir a mesma fonte. Selecionar novamente a mesma pasta para conferir ausência de duplicação.
+6. Revogar, reabrir e conferir estado revogado, preservando os arquivos. Reautorizar por nova escolha deve preservar o ID.
+
+### Não testado e fora do incremento
+
+Confirmação/revogação E2E por automação nativa ficaram limitadas pela entrada concorrente. Criação de fixtures symlink/junction, volumes externos, filesystem sensível a caixa, arquivos com nomes não representáveis em UTF-8, encerramento abrupto no meio de um grant e instaladores não foram testados. UNC é recusado antes de acessar a rede; não há testes de fontes remotas. Renomeações, índices/ideias/vínculos, backups e scanner continuam em seus próprios tickets. Nenhuma varredura do PC foi executada.
