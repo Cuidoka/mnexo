@@ -4,16 +4,19 @@ import {
   cancelScanSourceSelection,
   chooseScanSource,
   listScanSources,
+  indexFixtureSource,
   revokeScanSource,
   sourceErrorMessage,
   type FolderSelection,
   type ScanSource,
 } from '../../shared/api/scan-sources';
+import { ScanReportView } from './ScanReportView';
 
 export function SourcesPanel({ available }: { available: boolean }) {
   const [sources, setSources] = useState<ScanSource[]>([]);
   const [selection, setSelection] = useState<FolderSelection | null>(null);
   const [busy, setBusy] = useState(false);
+  const [indexingId, setIndexingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
@@ -120,6 +123,26 @@ export function SourcesPanel({ available }: { available: boolean }) {
     }
   }
 
+  async function indexFixture(source: ScanSource) {
+    listRevision.current += 1;
+    setBusy(true);
+    setIndexingId(source.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const changed = await indexFixtureSource(source.id);
+      setSources((items) =>
+        items.map((item) => (item.id === changed.id ? changed : item)),
+      );
+      setNotice('Relatório de metadados salvo no banco local.');
+    } catch (failure) {
+      setError(sourceErrorMessage(failure));
+    } finally {
+      setIndexingId(null);
+      setBusy(false);
+    }
+  }
+
   const disabled = !available || busy || loading;
   return (
     <section className="sources-card" aria-labelledby="sources-title">
@@ -204,6 +227,19 @@ export function SourcesPanel({ available }: { available: boolean }) {
                     : 'Autorização revogada'}
                 </span>
               </div>
+              {source.lastScan && <ScanReportView report={source.lastScan} />}
+              {source.fixtureEligible && source.authorized && (
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={disabled || selection !== null}
+                  onClick={() => void indexFixture(source)}
+                >
+                  {indexingId === source.id
+                    ? 'Indexando metadados…'
+                    : 'Indexar metadados da fixture'}
+                </button>
+              )}
               {source.authorized && (
                 <button
                   className="secondary-button"
@@ -222,8 +258,11 @@ export function SourcesPanel({ available }: { available: boolean }) {
 
       <div className="sources-footer">
         <p>
-          Varredura ainda não disponível. Para autorizar novamente uma fonte
-          revogada, selecione a pasta outra vez.
+          A indexação está disponível somente para a pasta de teste
+          .tools/fixtures/mvp-004 deste projeto, preparada com pnpm
+          fixture:prepare. Selecione e autorize essa pasta antes de indexar.
+          Para autorizar novamente uma fonte revogada, selecione a pasta outra
+          vez.
         </p>
         <button
           className="text-button"

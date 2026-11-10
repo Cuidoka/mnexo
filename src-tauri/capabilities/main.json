@@ -9,6 +9,7 @@
     "allow-cancel-scan-source-selection",
     "allow-add-scan-source",
     "allow-list-scan-sources",
-    "allow-revoke-scan-source"
+    "allow-revoke-scan-source",
+    "allow-index-fixture-source"
   ]
 }

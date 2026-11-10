@@ -3,5 +3,7 @@
   "rootPath": "C:\\fixture\\Documentos com espaço",
   "displayName": "Documentos com espaço",
   "authorized": true,
+  "fixtureEligible": false,
+  "lastScan": null,
   "createdAt": "2026-11-09T12:00:00.000Z"
 }

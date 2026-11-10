@@ -8,6 +8,17 @@ use crate::{
 };
 
 #[tauri::command]
+pub(crate) async fn index_fixture_source(
+    source_id: String,
+    storage: State<'_, Storage>,
+) -> Result<ScanSource, SourceError> {
+    let storage = storage.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || storage.index_fixture(&source_id))
+        .await
+        .map_err(|_| SourceError::new("SCAN_UNAVAILABLE"))?
+}
+
+#[tauri::command]
 pub(crate) async fn choose_scan_source(
     app: AppHandle,
     window: WebviewWindow,

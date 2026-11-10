@@ -149,3 +149,56 @@ O processo do MNEXO foi reiniciado de forma controlada durante a recuperação. 
 ### Não testado e fora do incremento
 
 Confirmação/revogação E2E por automação nativa ficaram limitadas pela entrada concorrente. Criação de fixtures symlink/junction, volumes externos, filesystem sensível a caixa, arquivos com nomes não representáveis em UTF-8, encerramento abrupto no meio de um grant e instaladores não foram testados. UNC é recusado antes de acessar a rede; não há testes de fontes remotas. Renomeações, índices/ideias/vínculos, backups e scanner continuam em seus próprios tickets. Nenhuma varredura do PC foi executada.
+
+## MVP-004 / RF-002 — metadados da fixture (09/11/2026)
+
+### Casos automatizados executados
+
+| ID                | Cobertura real                                                                                                                                                                                                             |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-002/T-003       | Árvore real sintética, relações pai-filho, agregação de bytes, raiz/pasta vazia e arquivo de zero bytes no SQLite. Navegação visual de nós permanece MVP-006.                                                              |
+| T-004             | Nomes Unicode/espaços, caminhos e datas preservados no filesystem/SQLite; abertura de arquivos não faz parte deste passo.                                                                                                  |
+| T-005             | Falhas injetadas de metadados, abertura de diretório e avanço de iterador; demais entradas continuam e pastas ancestrais ficam parciais. Não foram alteradas ACLs de pastas pessoais.                                      |
+| T-006             | Junções Windows reais para ancestral e diretório sintético externo: ambas ignoradas, sem loop nem bytes externos. Raiz com junção recusada.                                                                                |
+| T-008             | Reabertura recupera metadados/relatório, sem reindexar. Ideias continuam pendentes.                                                                                                                                        |
+| T-014/T-037       | Revogação durante enumeração interrompe publicação e preserva snapshot anterior; fonte revogada, inexistente ou fora da fixture é recusada.                                                                                |
+| T-028/T-029/T-036 | Migração schema 1 → 2 preserva autorização/nós/inteiro de 64 bits; falha ao publicar relatório reverte também os nós; reindexação preserva UUIDs e distingue snapshot atual de registros retidos.                          |
+| T-038             | Exclusões conservadoras, limites de entradas/profundidade/tempo e amostra de 100 ocorrências com total separado. Os limites são verificados entre operações, sem promessa de interromper uma chamada bloqueada.            |
+| T-039             | Fixture de contrato compartilhada Rust/TS, bytes acima de 2^53 preservados, relatório inconsistente recusado, nenhuma indexação automática, botão restrito à fixture, relatório persistido/erro/repetição na UI com mocks. |
+
+Os testes Rust de scanner usam somente `.tools/test-data`, com banco isolado e arquivos sintéticos. Comparam bytes e data de modificação antes/depois para confirmar preservação; o scanner não abre conteúdo. O teste de junções remove apenas suas junções sintéticas, sem recursão nos destinos. Não há scan de fontes pessoais.
+
+### Comandos e resultados observados
+
+| Comando                                                                                             | Resultado real                                                                                                                 |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm fixture:prepare` (duas execuções)                                                             | Passou; segunda execução preservou arquivos. Metadados conferidos: 3 arquivos de 25/16/0 bytes, 3 pastas incluindo raiz/vazia. |
+| `pnpm lint`                                                                                         | Passou, zero warnings permitidos.                                                                                              |
+| `pnpm typecheck`                                                                                    | Passou.                                                                                                                        |
+| `pnpm test`                                                                                         | 5 arquivos; 57 testes passaram, zero falhas.                                                                                   |
+| `cargo test --manifest-path src-tauri/Cargo.toml --locked --offline`                                | 38 testes Rust passaram, zero falhas.                                                                                          |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --all-targets -- -D warnings` | Passou.                                                                                                                        |
+
+Cargo foi executado após `Use-LocalRust.ps1`, com `CARGO_INCREMENTAL=0` somente no processo. A primeira execução teve 37 passes e uma falha de acesso ao criar a junção no sandbox. A repetição com permissão revelou uma mistura de separadores no caminho usado pelo teste com `mklink`; canonicalizar o destino sintético corrigiu o teste. A execução final passou, inclusive T-006. Clippy também identificou uma comparação booleana literal no teste de migração, corrigida para assert. Isso não foi tratado como sucesso antes da repetição.
+
+`pnpm desktop:build` passou, incluindo `pnpm build` (23 módulos) e o executável Windows release. A primeira tentativa no sandbox não conseguiu substituir `mnexo.exe` por acesso negado; a repetição autorizada concluiu o build. `pnpm format:check`, `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` e `git diff --check` passaram. Os três documentos originais continuam sem diff.
+
+### T-040 — inspeção nativa desta entrega
+
+O build release abriu com banco pronto e as duas fontes existentes preservadas na interface; fontes pessoais não exibem ação de indexação. O botão de seleção abriu o diálogo nativo vinculado à janela. Ao preencher exclusivamente o caminho da fixture do projeto, a ferramenta retornou `user input was detected in this window; call get_window_state before continuing`; a nova captura mostrou o diálogo fechado. A automação não concluiu autorização/indexação da fixture na instância real e não alterou fontes pessoais.
+
+Uma consulta independente, em modo SQLite somente leitura, confirmou schema 2, duas fontes (uma autorizada), zero nós, zero relatórios, `integrity_check = ok` e zero violações de FK. Isso também confirma ausência de scan automático na instância verificada. A capability gerada contém somente os sete comandos estreitos da aplicação, janela main e origem local, sem permissões genéricas de plugins.
+
+Confirmação, indexação, apresentação do relatório e reabertura desse relatório pela GUI nativa: **NÃO TESTADAS**. O percurso de scanner/SQLite é exercitado com filesystem real em fixtures isoladas; a UI/IPC é exercitada com mocks explicitados. Esses resultados não são apresentados como E2E nativo completo. A fixture preparada fica em `.tools/fixtures/mvp-004` para repetição manual.
+
+### Repetir o fluxo
+
+1. Executar `pnpm fixture:prepare` na raiz do checkout e compilar/abrir o desktop.
+2. Selecionar `.tools/fixtures/mvp-004` pelo diálogo nativo e autorizar. Conferir que não existe relatório antes do clique de indexação.
+3. Clicar **Indexar metadados da fixture**, conferir 3 arquivos/3 pastas/41 bytes na fixture recém-criada e ausência de ocorrências.
+4. Reabrir e conferir o mesmo relatório, sem novo scan; repetir o clique deve manter os IDs dos caminhos.
+5. Revogar a fixture e conferir que não se oferece indexação. Outras fontes autorizadas não recebem o botão e são recusadas no backend.
+
+### Limites do incremento
+
+RF-002 continua restrito à fixture do checkout de compilação. Não há scan geral, progresso/cancelamento, árvore 2D/3D, leitura de conteúdo, envio remoto ou IA. Não foram testados volumes externos, nomes não UTF-8, troca maliciosa de diretórios durante o percurso, perda de energia, outras máquinas ou instaladores. T-005 usa falhas controladas, sem afirmar validação de todas as ACLs Windows. Backup/restauração, identidade do filesystem e retenção/limpeza do índice seguem pendentes. ADR 0004 permanece **proposto**.

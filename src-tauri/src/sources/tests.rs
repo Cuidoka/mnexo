@@ -215,6 +215,8 @@ fn t034_shared_source_contracts_are_camel_case_and_errors_are_sanitized() {
         display_name: "Documentos com espaço".into(),
         authorized: true,
         created_at: "2026-11-09T12:00:00.000Z".into(),
+        fixture_eligible: false,
+        last_scan: None,
     };
     assert_eq!(serde_json::to_value(source).unwrap(), expected);
     let expected: serde_json::Value = serde_json::from_str(include_str!(

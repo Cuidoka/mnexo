@@ -7,6 +7,8 @@ use crate::sources::{display_path, ScanSource, SelectedFolder};
 fn source_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ScanSource> {
     let path: String = row.get(1)?;
     Ok(ScanSource {
+        fixture_eligible: crate::indexing::fixture_eligible(&path),
+        last_scan: None,
         id: row.get(0)?,
         root_path: display_path(&path),
         display_name: row.get(2)?,
@@ -16,7 +18,7 @@ fn source_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ScanSource> {
 }
 
 impl Storage {
-    fn database(&self) -> Result<Database, StorageError> {
+    pub(super) fn database(&self) -> Result<Database, StorageError> {
         Database::open(self.path.as_deref().ok_or(StorageError::PathUnavailable)?)
     }
 
@@ -26,9 +28,12 @@ impl Storage {
             "SELECT id, root_path, display_name, enabled, created_at FROM sources
              ORDER BY created_at, id",
         )?;
-        let sources = statement
+        let mut sources: Vec<ScanSource> = statement
             .query_map([], source_row)?
             .collect::<rusqlite::Result<_>>()?;
+        for source in &mut sources {
+            source.last_scan = super::indexing::read_report(&database.connection, &source.id)?;
+        }
         Ok(sources)
     }
 
@@ -37,7 +42,7 @@ impl Storage {
         folder: &SelectedFolder,
     ) -> Result<ScanSource, StorageError> {
         let database = self.database()?;
-        Ok(database.connection.query_row(
+        let mut source = database.connection.query_row(
             "INSERT INTO sources (id, root_path, display_name, enabled)
              VALUES (?1, ?2, ?3, 1)
              ON CONFLICT(root_path) DO UPDATE SET enabled = 1, display_name = excluded.display_name
@@ -48,13 +53,15 @@ impl Storage {
                 folder.display_name
             ],
             source_row,
-        )?)
+        )?;
+        source.last_scan = super::indexing::read_report(&database.connection, &source.id)?;
+        Ok(source)
     }
 
     pub(crate) fn revoke_source(&self, id: &str) -> Result<Option<ScanSource>, StorageError> {
         use rusqlite::OptionalExtension;
         let database = self.database()?;
-        Ok(database
+        let mut source = database
             .connection
             .query_row(
                 "UPDATE sources SET enabled = 0 WHERE id = ?1
@@ -62,6 +69,10 @@ impl Storage {
                 [id],
                 source_row,
             )
-            .optional()?)
+            .optional()?;
+        if let Some(source) = &mut source {
+            source.last_scan = super::indexing::read_report(&database.connection, &source.id)?;
+        }
+        Ok(source)
     }
 }

@@ -421,6 +421,7 @@ dd {
 }
 .source-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 18px;
   justify-content: space-between;
@@ -431,6 +432,7 @@ dd {
   font-size: 15px;
 }
 .source-info {
+  flex: 1 1 50%;
   min-width: 0;
 }
 .source-path {
@@ -505,4 +507,35 @@ dd {
     margin: 15px;
     padding: 17px;
   }
+}
+.scan-report {
+  flex-basis: 100%;
+  padding: 1rem;
+  border: 1px solid var(--border, #28434c);
+  border-radius: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.scan-report h4 {
+  margin: 0 0 0.5rem;
+}
+.scan-report p,
+.scan-report li {
+  color: #b6c9d2;
+  font-size: 0.875rem;
+}
+.scan-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+}
+.scan-counts dt {
+  color: #a7c0ce;
+  font-size: 0.8rem;
+}
+.scan-counts dd {
+  margin: 0.25rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.scan-report summary {
+  cursor: pointer;
 }

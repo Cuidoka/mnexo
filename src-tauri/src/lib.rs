@@ -1,4 +1,5 @@
 mod commands;
+mod indexing;
 mod sources;
 mod storage;
 
@@ -24,6 +25,7 @@ pub fn run() {
             commands::sources::add_scan_source,
             commands::sources::list_scan_sources,
             commands::sources::revoke_scan_source,
+            commands::sources::index_fixture_source,
         ])
         .run(tauri::generate_context!())
         .expect("Falha ao iniciar o MNEXO");

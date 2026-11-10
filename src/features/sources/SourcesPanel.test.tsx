@@ -3,11 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import source from '../../../tests/fixtures/scan-source.json';
 import selection from '../../../tests/fixtures/folder-selection.json';
+import report from '../../../tests/fixtures/scan-report.json';
 import {
   addScanSource,
   cancelScanSourceSelection,
   chooseScanSource,
   listScanSources,
+  indexFixtureSource,
   parseSource,
   revokeScanSource,
   type ScanSource,
@@ -21,6 +23,7 @@ vi.mock('../../shared/api/scan-sources', async (importOriginal) => ({
   chooseScanSource: vi.fn(),
   listScanSources: vi.fn(),
   revokeScanSource: vi.fn(),
+  indexFixtureSource: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -50,6 +53,7 @@ describe('T-001/T-014/T-034 — autorização explícita na UI', () => {
     ).toBeDisabled();
     expect(chooseScanSource).not.toHaveBeenCalled();
     expect(addScanSource).not.toHaveBeenCalled();
+    expect(indexFixtureSource).not.toHaveBeenCalled();
     await act(async () => finish([parseSource(source)]));
     expect(await screen.findByText(source.displayName)).toBeInTheDocument();
     expect(chooseScanSource).not.toHaveBeenCalled();
@@ -161,5 +165,86 @@ describe('T-001/T-014/T-034 — autorização explícita na UI', () => {
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Atualizar lista' }));
     expect(await screen.findByText(source.displayName)).toBeInTheDocument();
+  });
+});
+
+describe('T-039 — indexação explícita de fixture na UI', () => {
+  const fixtureSource = parseSource({ ...source, fixtureEligible: true });
+  it('listar ou autorizar uma fixture não dispara scan; o clique mostra o relatório persistido', async () => {
+    const user = userEvent.setup();
+    vi.mocked(addScanSource).mockResolvedValue(fixtureSource);
+    vi.mocked(indexFixtureSource).mockResolvedValue(
+      parseSource({ ...fixtureSource, lastScan: report }),
+    );
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Selecionar pasta' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Autorizar pasta' }),
+    );
+    const button = await screen.findByRole('button', {
+      name: 'Indexar metadados da fixture',
+    });
+    expect(indexFixtureSource).not.toHaveBeenCalled();
+    await user.click(button);
+    expect(indexFixtureSource).toHaveBeenCalledExactlyOnceWith(source.id);
+    const view = await screen.findByRole('region', {
+      name: 'Último relatório de indexação',
+    });
+    expect(within(view).getByText('Indexação parcial')).toBeInTheDocument();
+    expect(within(view).getByText('9.007.199.254.740.993')).toBeInTheDocument();
+    await user.click(
+      within(view).getByText('Ver relatório de erros e exclusões'),
+    );
+    expect(within(view).getByText(/Link ou junção ignorado/)).toBeVisible();
+  });
+  it('não oferece indexação para pasta pessoal ou fonte revogada', async () => {
+    vi.mocked(listScanSources).mockResolvedValue([
+      parseSource(source),
+      parseSource({ ...fixtureSource, id: 'revogada', authorized: false }),
+    ]);
+    render(<SourcesPanel available />);
+    await screen.findByText('Autorização revogada');
+    expect(
+      screen.queryByRole('button', { name: 'Indexar metadados da fixture' }),
+    ).not.toBeInTheDocument();
+    expect(indexFixtureSource).not.toHaveBeenCalled();
+  });
+  it('reabre o relatório salvo sem nova varredura', async () => {
+    vi.mocked(listScanSources).mockResolvedValue([
+      parseSource({ ...fixtureSource, lastScan: report }),
+    ]);
+    render(<SourcesPanel available />);
+    expect(
+      await screen.findByRole('region', {
+        name: 'Último relatório de indexação',
+      }),
+    ).toBeInTheDocument();
+    expect(indexFixtureSource).not.toHaveBeenCalled();
+  });
+  it('falha ao indexar preserva o relatório anterior e permite tentar novamente', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listScanSources).mockResolvedValue([
+      parseSource({ ...fixtureSource, lastScan: report }),
+    ]);
+    vi.mocked(indexFixtureSource).mockRejectedValue({
+      code: 'SCAN_UNAVAILABLE',
+      message: 'SQL-privado',
+    });
+    render(<SourcesPanel available />);
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Indexar metadados da fixture',
+      }),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'O relatório anterior foi preservado',
+    );
+    expect(
+      screen.getByRole('region', { name: 'Último relatório de indexação' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Indexar metadados da fixture' }),
+    ).toBeEnabled();
+    expect(screen.queryByText('SQL-privado')).not.toBeInTheDocument();
   });
 });

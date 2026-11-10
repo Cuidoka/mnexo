@@ -17,6 +17,8 @@ pub(crate) struct ScanSource {
     pub display_name: String,
     pub authorized: bool,
     pub created_at: String,
+    pub fixture_eligible: bool,
+    pub last_scan: Option<crate::indexing::ScanReport>,
 }
 
 #[derive(Debug, Serialize)]

@@ -74,10 +74,53 @@ fn assert_foreign_key_error(result: rusqlite::Result<usize>) {
 }
 
 #[test]
+fn t028_t036_upgrade_from_schema_one_preserves_authorization_and_existing_nodes() {
+    let directory = test_directory();
+    let path = directory.path().join("upgrade-one.sqlite3");
+    let mut connection = Connection::open(&path).unwrap();
+    migrations::apply(&mut connection, &migrations::MIGRATIONS[..1]).unwrap();
+    insert_fixture(&connection);
+    connection
+        .execute("UPDATE sources SET enabled=1 WHERE id=?1", [SOURCE_ID])
+        .unwrap();
+    drop(connection);
+    let database = Database::open(&path).unwrap();
+    assert_eq!(database.schema_version().unwrap(), 2);
+    assert!(database
+        .connection
+        .query_row(
+            "SELECT enabled FROM sources WHERE id=?1",
+            [SOURCE_ID],
+            |row| row.get::<_, bool>(0)
+        )
+        .unwrap());
+    assert_eq!(
+        database
+            .connection
+            .query_row(
+                "SELECT size_bytes FROM nodes WHERE id=?1",
+                [FILE_ID],
+                |row| row.get::<_, i64>(0)
+            )
+            .unwrap(),
+        9_007_199_254_740_993
+    );
+    assert_eq!(
+        database
+            .connection
+            .query_row("SELECT count(*) FROM scan_reports", [], |row| row
+                .get::<_, u32>(0))
+            .unwrap(),
+        0
+    );
+    assert_integrity(&database.connection);
+}
+
+#[test]
 fn t028_clean_database_migrates_without_inserting_or_authorizing_sources() {
     let directory = test_directory();
     let database = Database::open(&directory.path().join("clean.sqlite3")).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 1);
+    assert_eq!(database.schema_version().unwrap(), 2);
     let connection = &database.connection;
     for table in ["sources", "nodes"] {
         let count: u32 = connection
@@ -106,7 +149,7 @@ fn t028_reopen_preserves_unicode_hierarchy_and_integer_precision() {
     for _ in 0..2 {
         let database = Database::open(&path).unwrap();
         let connection = &database.connection;
-        assert_eq!(database.schema_version().unwrap(), 1);
+        assert_eq!(database.schema_version().unwrap(), 2);
         let (title, parent_id, size): (String, String, i64) = connection
             .query_row(
                 "SELECT title, parent_id, size_bytes FROM nodes WHERE id = ?1",
@@ -200,13 +243,17 @@ fn t029_failed_upgrade_rolls_back_ddl_data_and_schema_version() {
         },
         Migration {
             version: 2,
+            sql: migrations::MIGRATIONS[1].sql,
+        },
+        Migration {
+            version: 3,
             sql: "CREATE TABLE rollback_probe (id INTEGER PRIMARY KEY);
              UPDATE sources SET display_name = 'Alteração incompleta';
              INSERT INTO table_that_does_not_exist VALUES (1);",
         },
     ];
     assert!(migrations::apply(&mut database.connection, &attempted).is_err());
-    assert_eq!(database.schema_version().unwrap(), 1);
+    assert_eq!(database.schema_version().unwrap(), 2);
     let name: String = database
         .connection
         .query_row(
@@ -368,7 +415,7 @@ fn t028_concurrent_first_open_applies_migration_once() {
         })
         .collect();
     for worker in workers {
-        assert_eq!(worker.join().unwrap(), 1);
+        assert_eq!(worker.join().unwrap(), 2);
     }
     assert_integrity(&Database::open(&path).unwrap().connection);
 }
@@ -378,12 +425,12 @@ fn t029_locked_database_can_be_retried_after_the_lock_is_released() {
     let directory = test_directory();
     let path = directory.path().join("busy.sqlite3");
     let storage = Storage::new(Some(path.clone()));
-    assert_eq!(storage.schema_version().unwrap(), 1);
+    assert_eq!(storage.schema_version().unwrap(), 2);
     let connection = Connection::open(&path).unwrap();
     connection.execute_batch("BEGIN EXCLUSIVE;").unwrap();
     assert!(storage.schema_version().is_err());
     connection.execute_batch("ROLLBACK;").unwrap();
-    assert_eq!(storage.schema_version().unwrap(), 1);
+    assert_eq!(storage.schema_version().unwrap(), 2);
 }
 
 #[test]

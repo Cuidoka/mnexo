@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { DesktopRequiredError } from './app-status';
+import { parseScanReport, type ScanReport } from './scan-report';
 
 export interface ScanSource {
   id: string;
@@ -7,6 +8,8 @@ export interface ScanSource {
   displayName: string;
   authorized: boolean;
   createdAt: string;
+  fixtureEligible: boolean;
+  lastScan: ScanReport | null;
 }
 
 export interface FolderSelection {
@@ -30,16 +33,24 @@ export function parseSource(value: unknown): ScanSource {
     !text(value.rootPath) ||
     !text(value.displayName) ||
     typeof value.authorized !== 'boolean' ||
-    !text(value.createdAt)
+    !text(value.createdAt) ||
+    typeof value.fixtureEligible !== 'boolean' ||
+    !('lastScan' in value)
   ) {
     throw new Error('Resposta de fonte incompatível.');
   }
+  const report =
+    value.lastScan === null ? null : parseScanReport(value.lastScan);
+  if (report && report.sourceId !== value.id)
+    throw new Error('Relatório de outra fonte.');
   return {
     id: value.id,
     rootPath: value.rootPath,
     displayName: value.displayName,
     authorized: value.authorized,
     createdAt: value.createdAt,
+    fixtureEligible: value.fixtureEligible,
+    lastScan: report,
   };
 }
 
@@ -95,6 +106,15 @@ export async function revokeScanSource(sourceId: string): Promise<ScanSource> {
   return parseSource(await invoke<unknown>('revoke_scan_source', { sourceId }));
 }
 
+export async function indexFixtureSource(
+  sourceId: string,
+): Promise<ScanSource> {
+  requireDesktop();
+  return parseSource(
+    await invoke<unknown>('index_fixture_source', { sourceId }),
+  );
+}
+
 export function sourceErrorMessage(error: unknown): string {
   const code = record(error) ? error.code : null;
   switch (code) {
@@ -112,6 +132,14 @@ export function sourceErrorMessage(error: unknown): string {
       return 'Não foi possível acessar o banco local. Tente novamente.';
     case 'SOURCE_NOT_FOUND':
       return 'A fonte não foi encontrada. Atualize a lista.';
+    case 'SOURCE_NOT_AUTHORIZED':
+      return 'A fonte não está autorizada. Atualize a lista e autorize a fixture novamente.';
+    case 'FIXTURE_ONLY':
+      return 'Neste passo, somente a pasta de teste do projeto pode ser indexada.';
+    case 'FIXTURE_UNAVAILABLE':
+      return 'A pasta de teste está indisponível ou contém um link na raiz. Confira a fixture e selecione-a novamente.';
+    case 'SCAN_UNAVAILABLE':
+      return 'Não foi possível concluir a indexação. O relatório anterior foi preservado.';
     default:
       return 'Não foi possível concluir a operação. Tente novamente.';
   }
