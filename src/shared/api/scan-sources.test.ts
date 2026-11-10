@@ -7,7 +7,6 @@ import {
   cancelScanSourceSelection,
   chooseScanSource,
   listScanSources,
-  indexFixtureSource,
   parseSelection,
   parseSource,
   revokeScanSource,
@@ -77,7 +76,6 @@ describe('T-034 — contratos e comandos de fontes', () => {
       cancelScanSourceSelection,
       () => addScanSource(selection.selectionToken),
       () => revokeScanSource(source.id),
-      () => indexFixtureSource(source.id),
     ]) {
       await expect(operation()).rejects.toThrow(
         'Este recurso requer o aplicativo desktop.',
@@ -95,12 +93,5 @@ describe('T-034 — contratos e comandos de fontes', () => {
     expect(sourceErrorMessage(new Error('segredo-privado'))).not.toContain(
       'segredo-privado',
     );
-  });
-  it('indexa somente por ID, sem enviar caminhos nem limites do frontend', async () => {
-    vi.mocked(invoke).mockResolvedValue(source);
-    await indexFixtureSource(source.id);
-    expect(invoke).toHaveBeenCalledExactlyOnceWith('index_fixture_source', {
-      sourceId: source.id,
-    });
   });
 });

@@ -7,7 +7,9 @@ fn main() {
             "add_scan_source",
             "list_scan_sources",
             "revoke_scan_source",
-            "index_fixture_source",
+            "start_scan",
+            "get_scan_status",
+            "cancel_scan",
         ]),
     ))
     .expect("Falha na preparação do aplicativo Tauri");

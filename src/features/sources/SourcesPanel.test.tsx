@@ -4,12 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import source from '../../../tests/fixtures/scan-source.json';
 import selection from '../../../tests/fixtures/folder-selection.json';
 import report from '../../../tests/fixtures/scan-report.json';
+import job from '../../../tests/fixtures/scan-job.json';
+import {
+  getScanStatus,
+  startScan,
+  parseScanJob,
+} from '../../shared/api/scan-jobs';
 import {
   addScanSource,
   cancelScanSourceSelection,
   chooseScanSource,
   listScanSources,
-  indexFixtureSource,
   parseSource,
   revokeScanSource,
   type ScanSource,
@@ -23,11 +28,18 @@ vi.mock('../../shared/api/scan-sources', async (importOriginal) => ({
   chooseScanSource: vi.fn(),
   listScanSources: vi.fn(),
   revokeScanSource: vi.fn(),
-  indexFixtureSource: vi.fn(),
+}));
+
+vi.mock('../../shared/api/scan-jobs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../shared/api/scan-jobs')>()),
+  getScanStatus: vi.fn(),
+  startScan: vi.fn(),
+  cancelScan: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(getScanStatus).mockResolvedValue(null);
   vi.mocked(listScanSources).mockResolvedValue([]);
   vi.mocked(chooseScanSource).mockResolvedValue(selection);
   vi.mocked(addScanSource).mockResolvedValue(parseSource(source));
@@ -53,7 +65,7 @@ describe('T-001/T-014/T-034 — autorização explícita na UI', () => {
     ).toBeDisabled();
     expect(chooseScanSource).not.toHaveBeenCalled();
     expect(addScanSource).not.toHaveBeenCalled();
-    expect(indexFixtureSource).not.toHaveBeenCalled();
+    expect(startScan).not.toHaveBeenCalled();
     await act(async () => finish([parseSource(source)]));
     expect(await screen.findByText(source.displayName)).toBeInTheDocument();
     expect(chooseScanSource).not.toHaveBeenCalled();
@@ -173,9 +185,7 @@ describe('T-039 — indexação explícita de fixture na UI', () => {
   it('listar ou autorizar uma fixture não dispara scan; o clique mostra o relatório persistido', async () => {
     const user = userEvent.setup();
     vi.mocked(addScanSource).mockResolvedValue(fixtureSource);
-    vi.mocked(indexFixtureSource).mockResolvedValue(
-      parseSource({ ...fixtureSource, lastScan: report }),
-    );
+    vi.mocked(startScan).mockResolvedValue(parseScanJob(job)!);
     await ready();
     await user.click(screen.getByRole('button', { name: 'Selecionar pasta' }));
     await user.click(
@@ -184,9 +194,21 @@ describe('T-039 — indexação explícita de fixture na UI', () => {
     const button = await screen.findByRole('button', {
       name: 'Indexar metadados da fixture',
     });
-    expect(indexFixtureSource).not.toHaveBeenCalled();
+    expect(startScan).not.toHaveBeenCalled();
+    vi.mocked(listScanSources).mockResolvedValue([
+      parseSource({ ...fixtureSource, lastScan: report }),
+    ]);
     await user.click(button);
-    expect(indexFixtureSource).toHaveBeenCalledExactlyOnceWith(source.id);
+    expect(startScan).toHaveBeenCalledExactlyOnceWith(source.id);
+    expect(
+      screen.queryByText('Pasta autorizada. Nenhuma varredura foi iniciada.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Selecionar pasta' }),
+    ).toBeEnabled();
+    vi.mocked(getScanStatus).mockResolvedValue(
+      parseScanJob({ ...job, state: 'completed' }),
+    );
     const view = await screen.findByRole('region', {
       name: 'Último relatório de indexação',
     });
@@ -207,7 +229,7 @@ describe('T-039 — indexação explícita de fixture na UI', () => {
     expect(
       screen.queryByRole('button', { name: 'Indexar metadados da fixture' }),
     ).not.toBeInTheDocument();
-    expect(indexFixtureSource).not.toHaveBeenCalled();
+    expect(startScan).not.toHaveBeenCalled();
   });
   it('reabre o relatório salvo sem nova varredura', async () => {
     vi.mocked(listScanSources).mockResolvedValue([
@@ -219,14 +241,14 @@ describe('T-039 — indexação explícita de fixture na UI', () => {
         name: 'Último relatório de indexação',
       }),
     ).toBeInTheDocument();
-    expect(indexFixtureSource).not.toHaveBeenCalled();
+    expect(startScan).not.toHaveBeenCalled();
   });
   it('falha ao indexar preserva o relatório anterior e permite tentar novamente', async () => {
     const user = userEvent.setup();
     vi.mocked(listScanSources).mockResolvedValue([
       parseSource({ ...fixtureSource, lastScan: report }),
     ]);
-    vi.mocked(indexFixtureSource).mockRejectedValue({
+    vi.mocked(startScan).mockRejectedValue({
       code: 'SCAN_UNAVAILABLE',
       message: 'SQL-privado',
     });
@@ -237,7 +259,7 @@ describe('T-039 — indexação explícita de fixture na UI', () => {
       }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'O relatório anterior foi preservado',
+      'A operação de indexação ficou indisponível',
     );
     expect(
       screen.getByRole('region', { name: 'Último relatório de indexação' }),

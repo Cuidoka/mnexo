@@ -1,4 +1,4 @@
-# Arquitetura — estado do MVP-004
+# Arquitetura — estado do MVP-005
 
 Fonte da proposta completa: seção 03 de `../ESPECIFICACAO_COMPLETA.md`. Este documento registra apenas o incremento implementado e não substitui a especificação.
 
@@ -38,7 +38,7 @@ SQL e escolhas de conexão estão registrados nos ADRs 0002/0004, **propostos**,
 
 ## Fronteira de segurança
 
-`src-tauri/build.rs` declara os sete comandos de aplicação em `AppManifest::commands`, que gera as permissões específicas durante o build. A capability `main`, vinculada somente à janela `main`, concede status, os cinco comandos de fontes e a indexação restrita da fixture. Não há permissões genéricas dos plugins nem origens remotas. Arquivos de permissões gerados são ignorados pelo Git.
+`src-tauri/build.rs` declara os nove comandos de aplicação em `AppManifest::commands`, que gera as permissões específicas durante o build. A capability `main`, vinculada somente à janela `main`, concede status do aplicativo, os cinco comandos de fontes e os três comandos de jobs da fixture. Não há permissões genéricas dos plugins nem origens remotas. Arquivos de permissões gerados são ignorados pelo Git.
 
 A CSP permite scripts locais e transporte IPC; a variante de desenvolvimento adiciona o Vite em `127.0.0.1:1420`. Estilos inline são permitidos para compatibilidade com o desenvolvimento Vite; scripts inline arbitrários não são habilitados por essa regra. O contexto do Tauri injeta os próprios hashes/nonces necessários.
 
@@ -72,7 +72,7 @@ O picker nativo permanece uma interface do SO sob controle do usuário. `set_can
 
 ## Metadados da fixture (MVP-004 / RF-002)
 
-`index_fixture_source` recebe apenas `sourceId`. O backend exige fonte habilitada e exatamente a fixture local `.tools/fixtures/mvp-004` do checkout de compilação. O comando roda em `spawn_blocking`, consulta somente metadados e diretórios, revalida autorização durante o percurso e antes de publicar. Nenhuma outra fonte pode ser indexada. A UI oferece o botão apenas para fontes elegíveis, mas essa indicação não substitui as checagens Rust. Início, listagem e autorização nunca disparam esse comando.
+No MVP-005, `start_scan(sourceId)` substitui `index_fixture_source`: reserva um job e dispara o worker sem esperar o percurso. O backend continua exigindo fonte habilitada e exatamente a fixture local `.tools/fixtures/mvp-004` do checkout de compilação. O worker consulta somente metadados e diretórios e revalida autorização durante o percurso e antes de publicar. Nenhuma outra fonte pode ser indexada. A indicação de elegibilidade da UI não substitui as checagens Rust. Inicialização, listagem e autorização nunca iniciam jobs.
 
 O script `pnpm fixture:prepare` cria dados sintéticos explicitamente, preservando arquivos existentes. Os testes usam fixtures temporárias separadas. O scanner não oferece criação/remoção/gravação nas fontes e não abre conteúdo. Links/reparse e entradas excluídas são relatados e não percorridos; falhas recuperáveis mantêm a leitura dos demais itens. Nomes/caminhos são dados, renderizados como texto React.
 
@@ -82,7 +82,25 @@ A migração 002 acrescenta campos às linhas de nós e as tabelas de relatório
 
 `ScanReport`: `{sourceId, scanId, completedAt, filesCount, foldersCount, totalBytes, skippedCount, errorCount, partial, issues, issuesTruncated}`. Cada ocorrência é `{relativePath, code}`, sem mensagem interna do SO. Pasta inclui a raiz; exclusões deliberadas contam como ocorrências e tornam o resultado parcial. A política completa está no ADR 0004, **proposto**.
 
-T-002/T-003/T-004/T-005/T-006/T-008 e T-036 a T-039 cobrem o incremento. A parte de T-004 relativa à abertura de arquivos e a parte de T-008 sobre ideias continuam pendentes. Progresso/cancelamento, navegação 2D, uso com fontes pessoais e resistência a mutações hostis durante o percurso ficam para revisão própria; não se declara filesystem snapshot atômico nem timeout rígido.
+T-002/T-003/T-004/T-005/T-006/T-008 e T-036 a T-039 cobrem metadados/persistência. A parte de T-004 relativa à abertura de arquivos e a parte de T-008 sobre ideias continuam pendentes. Navegação 2D, uso com fontes pessoais e resistência a mutações hostis durante o percurso ficam para seus tickets/revisão própria; não se declara filesystem snapshot atômico nem timeout rígido.
+
+## Jobs e cancelamento (MVP-005 / RNF-002)
+
+| Comando           | Entrada  | Saída                                                               |
+| ----------------- | -------- | ------------------------------------------------------------------- |
+| `start_scan`      | sourceId | ScanJob reservado, sem esperar o filesystem                         |
+| `get_scan_status` | nenhuma  | Último ScanJob do processo ou null                                  |
+| `cancel_scan`     | jobId    | ScanJob com pedido de cancelamento, ou estado terminal já conhecido |
+
+O registro `ScanJobs` mantém um único slot em memória. Mutex curto protege identidade, progresso e transições; nenhuma consulta SQLite ou operação de filesystem roda sob esse lock. start/cancel/status são síncronos e pequenos; o worker de bloqueio é monitorado em tarefa assíncrona para converter falha do worker em código público. Somente um job fica ativo por processo, inclusive em cancelling/publishing. IDs antigos não cancelam uma execução nova.
+
+`ScanJob = {jobId, sourceId, state, progress, errorCode}`. Os estados são running/cancelling/publishing/completed/cancelled/failed. Progresso contém visitedEntries, filesCount, foldersCount, totalBytes decimal, skippedCount e errorCount, sem conteúdo ou caminho atual. O job começa antes da validação de raiz/autorização pelo worker; uma fonte recusada termina failed, sem enumeração.
+
+O walker informa contagens e passa por checkpoints cooperativos. O pedido muda para cancelling; cancelled só ocorre quando o worker reconhece e descarta o resultado. A fronteira before_publish decide, sob o mesmo mutex, entre cancelar e entrar em publishing. Nesse último estado, cancelar retorna SCAN_FINISHING; a transação mantém sua atomicidade e ainda revalida a autorização. Cancelamento confirmado antes da publicação preserva índice/relatório anteriores. Operações de I/O bloqueadas e a validação inicial podem atrasar a confirmação, sem bloquear as consultas de status.
+
+A UI faz polling a cada 400 ms após a resposta anterior, sem sobrepor consultas. Versões de requisição invalidam respostas anteriores a iniciar/cancelar; desmontar interrompe o polling e ignora respostas pendentes. Falha de consulta mantém o último estado conhecido e informa incerteza. Ao observar um término, a UI recarrega fontes/relatório uma vez. A barra é indeterminada porque não existe total confiável sem novo percurso; ações de fonte não recebem busy global durante o scan.
+
+O schema permanece 2. Reiniciar o processo limpa somente o slot volátil e não dispara scan; o último índice confirmado continua no banco. Recarregar a tela recupera o job do mesmo processo. Reinício após cancelamento/falha é explícito, a partir da raiz; histórico de jobs, pausa/retomada incremental e RNF-010 continuam pendentes. ADR 0005, **proposto**, registra decisões/limites; T-007/T-041/T-042 verificam backend e UI.
 
 ## Rastreabilidade e limites
 

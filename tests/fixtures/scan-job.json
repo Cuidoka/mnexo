@@ -1,0 +1,14 @@
+{
+  "jobId": "00000000-0000-4000-8000-000000000004",
+  "sourceId": "00000000-0000-4000-8000-000000000001",
+  "state": "running",
+  "progress": {
+    "visitedEntries": 6,
+    "filesCount": 3,
+    "foldersCount": 3,
+    "totalBytes": "9007199254740993",
+    "skippedCount": 0,
+    "errorCount": 0
+  },
+  "errorCode": null
+}

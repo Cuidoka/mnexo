@@ -7,6 +7,7 @@ use std::{
 
 use crate::sources::SourceError;
 
+use super::control::{ScanControl, ScanProgress};
 use super::ScanIssue;
 
 pub(crate) trait MetadataFs {
@@ -145,16 +146,31 @@ struct Walker<'a, F, G> {
     visited: u32,
     stopped: bool,
     snapshot: Snapshot,
+    control: &'a dyn ScanControl,
+    file_bytes: i64,
 }
 
 impl<F: MetadataFs, G: Fn() -> Result<(), SourceError>> Walker<'_, F, G> {
+    fn checkpoint(&self) -> Result<(), SourceError> {
+        self.control.progress(ScanProgress {
+            visited_entries: self.visited,
+            files_count: self.snapshot.files,
+            folders_count: self.snapshot.folders,
+            total_bytes: self.file_bytes.to_string(),
+            skipped_count: self.snapshot.skipped,
+            error_count: self.snapshot.errors,
+        })?;
+        self.control.checkpoint()?;
+        (self.guard)()
+    }
+
     fn visit(
         &mut self,
         path: &Path,
         parent: Option<usize>,
         depth: usize,
     ) -> Result<(), SourceError> {
-        (self.guard)()?;
+        self.checkpoint()?;
         if self.stopped {
             return Ok(());
         }
@@ -164,7 +180,9 @@ impl<F: MetadataFs, G: Fn() -> Result<(), SourceError>> Walker<'_, F, G> {
             return Ok(());
         }
         self.visited += 1;
-        let metadata = match self.filesystem.metadata(path) {
+        let metadata_result = self.filesystem.metadata(path);
+        self.checkpoint()?;
+        let metadata = match metadata_result {
             Ok(metadata) => metadata,
             Err(_) => {
                 self.snapshot.issue(self.root, path, "METADATA_UNAVAILABLE");
@@ -238,19 +256,24 @@ impl<F: MetadataFs, G: Fn() -> Result<(), SourceError>> Walker<'_, F, G> {
             self.snapshot.folders += 1;
         } else {
             self.snapshot.files += 1;
+            self.file_bytes = self
+                .file_bytes
+                .checked_add(bytes)
+                .unwrap_or(self.file_bytes);
         }
         if folder {
             let before = self.snapshot.errors;
             if depth >= self.limits.depth {
                 self.snapshot.issue(self.root, path, "DEPTH_LIMIT");
             } else {
-                (self.guard)()?;
+                self.checkpoint()?;
                 // Revalidar os pais antes de cada abertura de diretório.
                 let mut safe = true;
                 for ancestor in path
                     .ancestors()
                     .take_while(|ancestor| ancestor.starts_with(self.root))
                 {
+                    self.checkpoint()?;
                     if !self
                         .filesystem
                         .metadata(ancestor)
@@ -263,13 +286,22 @@ impl<F: MetadataFs, G: Fn() -> Result<(), SourceError>> Walker<'_, F, G> {
                 if !safe {
                     self.snapshot.issue(self.root, path, "DIRECTORY_CHANGED");
                 } else {
-                    match self.filesystem.entries(path) {
+                    self.checkpoint()?;
+                    let entries_result = self.filesystem.entries(path);
+                    self.checkpoint()?;
+                    match entries_result {
                         Err(_) => self.snapshot.issue(self.root, path, "DIRECTORY_UNREADABLE"),
-                        Ok(entries) => {
-                            for entry in entries {
+                        Ok(mut entries) => {
+                            loop {
+                                self.checkpoint()?;
                                 if self.stopped {
                                     break;
                                 }
+                                let entry = entries.next();
+                                self.checkpoint()?;
+                                let Some(entry) = entry else {
+                                    break;
+                                };
                                 match entry {
                                     Ok(child) if child.parent() == Some(path) => {
                                         self.visit(&child, Some(index), depth + 1)?
@@ -304,13 +336,32 @@ impl<F: MetadataFs, G: Fn() -> Result<(), SourceError>> Walker<'_, F, G> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn collect<F: MetadataFs, G: Fn() -> Result<(), SourceError>>(
     root: &Path,
     filesystem: &F,
     guard: G,
     limits: Limits,
 ) -> Result<Snapshot, SourceError> {
+    collect_controlled(
+        root,
+        filesystem,
+        guard,
+        limits,
+        &super::control::Uncontrolled,
+    )
+}
+
+pub(crate) fn collect_controlled<F: MetadataFs, G: Fn() -> Result<(), SourceError>>(
+    root: &Path,
+    filesystem: &F,
+    guard: G,
+    limits: Limits,
+    control: &dyn ScanControl,
+) -> Result<Snapshot, SourceError> {
     let mut walker = Walker {
+        control,
+        file_bytes: 0,
         root,
         filesystem,
         guard,
@@ -328,5 +379,6 @@ pub(crate) fn collect<F: MetadataFs, G: Fn() -> Result<(), SourceError>>(
         },
     };
     walker.visit(root, None, 0)?;
+    walker.checkpoint()?;
     Ok(walker.snapshot)
 }

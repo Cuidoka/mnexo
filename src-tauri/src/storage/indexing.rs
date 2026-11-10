@@ -6,13 +6,16 @@ use uuid::Uuid;
 use crate::{
     indexing::{
         self,
+        control::ScanControl,
         walk::{self, Limits, LocalFs, MetadataFs, Snapshot},
         ScanIssue, ScanReport,
     },
-    sources::{ScanSource, SourceError},
+    sources::SourceError,
 };
 
 use super::{Storage, StorageError};
+#[cfg(test)]
+use crate::sources::ScanSource;
 
 pub(super) fn read_report(
     connection: &Connection,
@@ -152,6 +155,7 @@ fn save_snapshot(
 }
 
 impl Storage {
+    #[cfg(test)]
     pub(crate) fn index_fixture(&self, source_id: &str) -> Result<ScanSource, SourceError> {
         self.index_fixture_at(
             source_id,
@@ -162,6 +166,7 @@ impl Storage {
     }
 
     // O caminho nunca é argumento IPC. Testes usam somente suas próprias fixtures temporárias.
+    #[cfg(test)]
     pub(crate) fn index_fixture_at<F: MetadataFs>(
         &self,
         source_id: &str,
@@ -169,6 +174,43 @@ impl Storage {
         filesystem: &F,
         limits: Limits,
     ) -> Result<ScanSource, SourceError> {
+        self.index_fixture_at_controlled(
+            source_id,
+            fixture,
+            filesystem,
+            limits,
+            &indexing::control::Uncontrolled,
+        )?;
+        self.list_sources()
+            .map_err(SourceError::database)?
+            .into_iter()
+            .find(|source| source.id == source_id)
+            .ok_or_else(|| SourceError::new("SOURCE_NOT_FOUND"))
+    }
+
+    pub(crate) fn index_fixture_controlled(
+        &self,
+        source_id: &str,
+        control: &dyn ScanControl,
+    ) -> Result<(), SourceError> {
+        self.index_fixture_at_controlled(
+            source_id,
+            &indexing::fixture_path(),
+            &LocalFs,
+            Limits::default(),
+            control,
+        )
+    }
+
+    pub(crate) fn index_fixture_at_controlled<F: MetadataFs>(
+        &self,
+        source_id: &str,
+        fixture: &Path,
+        filesystem: &F,
+        limits: Limits,
+        control: &dyn ScanControl,
+    ) -> Result<(), SourceError> {
+        control.checkpoint()?;
         let id = Uuid::parse_str(source_id)
             .map_err(|_| SourceError::new("SOURCE_NOT_FOUND"))?
             .to_string();
@@ -189,17 +231,14 @@ impl Storage {
             return Err(SourceError::new("FIXTURE_ONLY"));
         }
         walk::validate_root(fixture, &root)?;
-        let snapshot = walk::collect(
+        let snapshot = walk::collect_controlled(
             fixture,
             filesystem,
             || require_authorized(&database.connection, &id, &root),
             limits,
+            control,
         )?;
-        save_snapshot(&mut database.connection, &id, &root, snapshot)?;
-        self.list_sources()
-            .map_err(SourceError::database)?
-            .into_iter()
-            .find(|source| source.id == id)
-            .ok_or_else(|| SourceError::new("SOURCE_NOT_FOUND"))
+        control.before_publish()?;
+        save_snapshot(&mut database.connection, &id, &root, snapshot)
     }
 }

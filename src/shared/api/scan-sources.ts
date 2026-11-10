@@ -106,15 +106,6 @@ export async function revokeScanSource(sourceId: string): Promise<ScanSource> {
   return parseSource(await invoke<unknown>('revoke_scan_source', { sourceId }));
 }
 
-export async function indexFixtureSource(
-  sourceId: string,
-): Promise<ScanSource> {
-  requireDesktop();
-  return parseSource(
-    await invoke<unknown>('index_fixture_source', { sourceId }),
-  );
-}
-
 export function sourceErrorMessage(error: unknown): string {
   const code = record(error) ? error.code : null;
   switch (code) {
@@ -139,7 +130,13 @@ export function sourceErrorMessage(error: unknown): string {
     case 'FIXTURE_UNAVAILABLE':
       return 'A pasta de teste está indisponível ou contém um link na raiz. Confira a fixture e selecione-a novamente.';
     case 'SCAN_UNAVAILABLE':
-      return 'Não foi possível concluir a indexação. O relatório anterior foi preservado.';
+      return 'A operação de indexação ficou indisponível. Consulte o andamento ou tente novamente.';
+    case 'SCAN_BUSY':
+      return 'Uma varredura já está em andamento. Aguarde ou cancele antes de iniciar outra.';
+    case 'SCAN_NOT_FOUND':
+      return 'Esta varredura não está mais disponível. Confira o andamento atual.';
+    case 'SCAN_FINISHING':
+      return 'O resultado já está sendo salvo. O cancelamento não pode mais ser solicitado.';
     default:
       return 'Não foi possível concluir a operação. Tente novamente.';
   }

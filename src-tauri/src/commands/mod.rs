@@ -1,4 +1,5 @@
 use serde::Serialize;
+pub(crate) mod scans;
 pub(crate) mod sources;
 use tauri::State;
 

@@ -4,11 +4,11 @@ Aplicativo desktop em desenvolvimento para conectar arquivos reais e conheciment
 
 ## Estado real
 
-Incremento atual: **MVP-004 / RF-002 — metadados de fixture autorizada**. A tela Fontes mantém seleção, autorização e revogação e acrescenta um botão explícito de indexação somente para a fixture sintética deste checkout. O índice e o último relatório de contagens/erros são persistidos no SQLite.
+Incremento atual: **MVP-005 / RNF-002 — progresso, status e cancelamento**. A indexação da fixture autorizada passa a ser um job em segundo plano, com contagens durante a leitura e cancelamento cooperativo. O índice e o último relatório concluído permanecem no SQLite; o job atual fica em memória.
 
 O banco possui `sources`/`nodes` e as tabelas de relatório. O comando retorna `databaseStatus: "ready"` e `schemaVersion: 2` quando o banco está disponível; em falha retorna `"unavailable"` e `null`. A interface distingue falha do banco de falha IPC e permite tentar novamente. IA continua `"disabled"`.
 
-Indexação de pastas pessoais, progresso/cancelamento, edição de ideias, busca do produto, 3D e integração de IA **ainda não estão implementados**. Autorizar não inicia varredura. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
+Indexação de pastas pessoais, pausa/retomada incremental, edição de ideias, busca do produto, 3D e integração de IA **ainda não estão implementados**. Autorizar não inicia varredura. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
 
 ## Adicionar e revogar uma fonte
 
@@ -22,13 +22,17 @@ A autorização é para metadados dessa raiz. Leitura de conteúdo e envio remot
 
 Escopo atual: pastas locais; caminhos UNC/de rede e raízes que sejam links simbólicos/junções são recusados. Não há leitura de conteúdo nem remoção permanente do cadastro. A raiz é validada antes da confirmação e novamente antes da gravação. Links intermediários podem ser resolvidos pela canonicalização na seleção; o scanner da fixture também recusa links nos ancestrais. Renomeações e identidade estável do filesystem continuam no RF-011.
 
-## Indexar a fixture (MVP-004)
+## Indexar e cancelar a fixture (MVP-004/005)
 
 1. Na raiz do projeto, execute `pnpm fixture:prepare`. O script cria somente dados sintéticos em `.tools/fixtures/mvp-004`, incluindo uma pasta vazia e um arquivo de zero bytes. Arquivos já existentes são preservados.
 2. No aplicativo desktop, selecione exatamente essa pasta e confirme **Autorizar pasta**. A autorização não inicia indexação.
 3. Clique **Indexar metadados da fixture**. O backend recebe apenas o ID e recusa outras raízes, inclusive fontes pessoais já autorizadas.
-4. Confira arquivos, pastas (inclui a raiz), bytes lógicos, entradas ignoradas e ocorrências. Abra o relatório de erros/exclusões se o resultado for parcial.
-5. Feche/reabra o aplicativo: o relatório é recarregado do banco, sem nova varredura. Repetir o clique atualiza o snapshot e preserva IDs dos caminhos conhecidos.
+4. Acompanhe **Andamento da indexação**: entradas visitadas, arquivos/pastas, bytes, ignoradas e ocorrências. O total da árvore ainda é desconhecido, então a barra é indeterminada, sem percentual estimado. A tela continua permitindo consultar fontes e revogar autorização.
+5. **Cancelar varredura** solicita interrupção. Aguarde **Varredura cancelada**: a solicitação não interrompe à força uma chamada do filesystem já em curso. O trabalho incompleto é descartado e o índice/relatório anteriores permanecem.
+6. Em **Salvando o índice**, a publicação já começou e não aceita cancelamento. Ao concluir, confira o relatório persistido, inclusive erros/exclusões se parcial.
+7. Uma nova execução começa da raiz, por novo clique. Fechar/reabrir o processo limpa o estado volátil do job, carrega o último relatório salvo e não inicia scan. Repetir o clique preserva IDs dos caminhos conhecidos.
+
+Existe apenas um job ativo por processo, incluindo o período em que aguarda confirmação de cancelamento ou grava o resultado. Recarregar a tela no mesmo processo recupera esse job. Jobs e progresso não possuem histórico persistente; pausa e retomada por checkpoint pertencem à evolução de RNF-010. O schema continua **2**, sem migração nova no MVP-005.
 
 Com a fixture recém-criada: **3 arquivos, 3 pastas e 41 bytes** (25 + 16 + 0, conferidos no filesystem). Se você modificar os dados sintéticos, as contagens refletem a árvore atual. Nenhum conteúdo é lido pelo scanner: somente nome, tipo arquivo/pasta, caminho, hierarquia, tamanho e datas de criação/modificação.
 
@@ -106,7 +110,7 @@ Os testes SQLite usam diretórios temporários dentro de `.tools/test-data`, sem
 ## Segurança e limites
 
 - `get_app_status` mantém o diagnóstico de versão e banco. As operações de dados do aplicativo são executadas no Rust e concedidas somente à janela `main`.
-- Os comandos de fontes são estreitos e permitidos somente na janela `main`: escolha nativa, cancelamento, confirmação por token, listagem, revogação e indexação de fixture por ID. Nenhum aceita caminho livre ou SQL vindo do frontend.
+- Os comandos são estreitos e permitidos somente na janela `main`: status, seleção/autorização/listagem/revogação de fontes e início/status/cancelamento de job. Dados entram por token ou IDs; nenhum aceita caminho livre ou SQL vindo do frontend.
 - O plugin oficial de diálogo roda pelo Rust; nenhuma permissão genérica de diálogo, filesystem, shell, HTTP ou SQL é concedida ao frontend. Somente a fixture pode ter filhos enumerados, após autorização e clique explícito; não há leitura de conteúdo. O crate filesystem é dependência transitiva do plugin de diálogo, sem permissões concedidas na capability.
 - A interface usa recursos empacotados e fontes do sistema, sem CDN, telemetria, endpoints de IA ou chaves.
 - A CSP de produção permite conexão IPC local. A CSP de desenvolvimento acrescenta somente o servidor Vite no loopback.
@@ -118,6 +122,6 @@ O ícone provisório foi desenhado como SVG no projeto; o ICO é derivado pelo C
 
 `src/app` contém a tela, `src/shared/api` encapsula o IPC, `src-tauri/src/commands` contém o contrato Rust, `src-tauri/src/storage` encapsula SQLite e migrações, `src-tauri/migrations` guarda o SQL, `tests/fixtures` guarda somente contratos sintéticos e `docs` registra arquitetura, testes e decisões.
 
-O usuário solicitou, a partir do MVP-004, commit detalhado e push ao GitHub a cada passo concluído. Isso não autoriza iniciar incrementos futuros. Os três documentos recebidos foram preservados. O rollback deve reverter somente o código após revisão, preservando o banco; versões antigas que suportam apenas schema 1 recusam schema 2. Não existe downgrade automático nem rotina que apague bancos incompatíveis. Migrações com erro revertem sua transação. Backup consistente e restauração continuam pendentes.
+O usuário solicitou, a partir do MVP-004, commit detalhado e push ao GitHub a cada passo concluído; a partir do MVP-005, também criação e merge da PR após validação. Isso não autoriza iniciar incrementos futuros nem ignorar verificações exigidas no GitHub. A PR #1 do MVP-004 foi integrada manualmente pelo usuário; este incremento parte da main atualizada. Os três documentos recebidos foram preservados. O MVP-005 mantém schema 2, permitindo reverter seu código para MVP-004 sem downgrade; versões anteriores que só entendem schema 1 recusam o banco atualizado. Backup consistente e restauração continuam pendentes.
 
-Próximo incremento mínimo: **MVP-005 / RNF-002**, status/progresso e cancelamento de scan, com validação da resposta da UI.
+Próximo incremento mínimo: **MVP-006 / RF-006**, árvore/lista 2D com breadcrumbs e painel dos metadados reais da fixture.

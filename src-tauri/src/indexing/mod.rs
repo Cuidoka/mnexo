@@ -1,3 +1,5 @@
+pub(crate) mod control;
+pub(crate) mod jobs;
 pub(crate) mod walk;
 
 use std::path::{Path, PathBuf};
