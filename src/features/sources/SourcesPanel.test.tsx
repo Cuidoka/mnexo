@@ -5,6 +5,8 @@ import source from '../../../tests/fixtures/scan-source.json';
 import selection from '../../../tests/fixtures/folder-selection.json';
 import report from '../../../tests/fixtures/scan-report.json';
 import job from '../../../tests/fixtures/scan-job.json';
+import { rootPage, folderPage } from '../../../tests/catalog-fixtures';
+import { getNodeChildren } from '../../shared/api/catalog';
 import {
   getScanStatus,
   startScan,
@@ -37,6 +39,12 @@ vi.mock('../../shared/api/scan-jobs', async (importOriginal) => ({
   cancelScan: vi.fn(),
 }));
 
+vi.mock('../../shared/api/catalog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../shared/api/catalog')>()),
+  getNodeChildren: vi.fn(),
+  getNodeDetail: vi.fn(),
+}));
+
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getScanStatus).mockResolvedValue(null);
@@ -44,6 +52,85 @@ beforeEach(() => {
   vi.mocked(chooseScanSource).mockResolvedValue(selection);
   vi.mocked(addScanSource).mockResolvedValue(parseSource(source));
   vi.mocked(cancelScanSourceSelection).mockResolvedValue(undefined);
+  vi.mocked(getNodeChildren).mockResolvedValue(rootPage);
+});
+
+describe('T-046/T-048 — integração do catálogo com fontes e snapshots', () => {
+  const indexed = parseSource({
+    ...source,
+    fixtureEligible: true,
+    lastScan: report,
+  });
+  it('abre somente por clique, consulta o snapshot e fecha ao revogar', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listScanSources).mockResolvedValue([indexed]);
+    vi.mocked(revokeScanSource).mockResolvedValue({
+      ...indexed,
+      authorized: false,
+    });
+    render(<SourcesPanel available />);
+    const open = await screen.findByRole('button', {
+      name: `Explorar índice de ${source.displayName}`,
+    });
+    expect(getNodeChildren).not.toHaveBeenCalled();
+    await user.click(open);
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(getNodeChildren).toHaveBeenCalledExactlyOnceWith(
+      source.id,
+      report.scanId,
+      null,
+    );
+    expect(startScan).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole('button', {
+        name: `Revogar autorização de ${source.displayName}`,
+      }),
+    );
+    expect(
+      screen.queryByRole('region', {
+        name: `Índice 2D — ${source.displayName}`,
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {
+        name: `Explorar índice de ${source.displayName}`,
+      }),
+    ).not.toBeInTheDocument();
+  });
+  it('atualizar a fonte com novo snapshot reinicia a navegação na raiz', async () => {
+    const user = userEvent.setup();
+    const nextScan = '00000000-0000-4000-8000-000000000009';
+    vi.mocked(listScanSources).mockResolvedValue([indexed]);
+    vi.mocked(getNodeChildren).mockImplementation(
+      async (_source, scan, folder) => {
+        const page =
+          folder === folderPage.folder.node.id ? folderPage : rootPage;
+        return { ...page, folder: { ...page.folder, scanId: scan } };
+      },
+    );
+    render(<SourcesPanel available />);
+    await user.click(
+      await screen.findByRole('button', {
+        name: `Explorar índice de ${source.displayName}`,
+      }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: 'Abrir pasta Coleção ç' }),
+    );
+    await screen.findByText('Pasta vazia no índice.');
+    vi.mocked(listScanSources).mockResolvedValue([
+      parseSource({ ...indexed, lastScan: { ...report, scanId: nextScan } }),
+    ]);
+    await user.click(
+      screen.getByRole('button', { name: 'Atualizar catálogo' }),
+    );
+    await screen.findByRole('button', { name: 'Abrir pasta Coleção ç' });
+    expect(getNodeChildren).toHaveBeenLastCalledWith(source.id, nextScan, null);
+    expect(
+      screen.getByRole('button', { name: 'Voltar à pasta pai' }),
+    ).toBeDisabled();
+    expect(startScan).not.toHaveBeenCalled();
+  });
 });
 
 async function ready() {

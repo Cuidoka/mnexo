@@ -12,6 +12,8 @@
     "allow-revoke-scan-source",
     "allow-start-scan",
     "allow-get-scan-status",
-    "allow-cancel-scan"
+    "allow-cancel-scan",
+    "allow-get-node-children",
+    "allow-get-node-detail"
   ]
 }

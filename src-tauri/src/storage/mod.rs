@@ -1,3 +1,4 @@
+mod catalog;
 mod indexing;
 mod migrations;
 mod sources;

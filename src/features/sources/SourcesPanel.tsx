@@ -11,9 +11,11 @@ import {
 } from '../../shared/api/scan-sources';
 import { ScanReportView } from './ScanReportView';
 import { ScanJobsPanel } from './ScanJobsPanel';
+import { CatalogBrowser } from '../catalog/CatalogBrowser';
 
 export function SourcesPanel({ available }: { available: boolean }) {
   const [sources, setSources] = useState<ScanSource[]>([]);
+  const [browsingId, setBrowsingId] = useState<string | null>(null);
   const [selection, setSelection] = useState<FolderSelection | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -114,6 +116,7 @@ export function SourcesPanel({ available }: { available: boolean }) {
     setNotice(null);
     try {
       const changed = await revokeScanSource(source.id);
+      setBrowsingId((current) => (current === changed.id ? null : current));
       setSources((items) =>
         items.map((item) => (item.id === changed.id ? changed : item)),
       );
@@ -128,6 +131,10 @@ export function SourcesPanel({ available }: { available: boolean }) {
   }
 
   const disabled = !available || busy || loading;
+  const browsing = sources.find(
+    (source) =>
+      source.id === browsingId && source.authorized && source.lastScan,
+  );
   return (
     <section className="sources-card" aria-labelledby="sources-title">
       <div className="section-heading">
@@ -152,9 +159,9 @@ export function SourcesPanel({ available }: { available: boolean }) {
           </h3>
           <p className="source-path">{selection.rootPath}</p>
           <p>
-            Você autoriza o MNEXO a guardar esta fonte e, em uma etapa futura,
-            indexar seus metadados. Ler conteúdo ou enviar dados à IA exige
-            autorização separada.
+            Você autoriza o MNEXO a guardar esta fonte para indexação de
+            metadados, quando disponível para esta pasta. Ler conteúdo ou enviar
+            dados à IA exige autorização separada.
           </p>
           <p>Nenhuma varredura será iniciada ao confirmar.</p>
           <div className="source-actions">
@@ -212,6 +219,19 @@ export function SourcesPanel({ available }: { available: boolean }) {
                 </span>
               </div>
               {source.lastScan && <ScanReportView report={source.lastScan} />}
+              {source.authorized &&
+                source.lastScan &&
+                source.lastScan.foldersCount > 0 && (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={disabled || selection !== null}
+                    aria-label={`Explorar índice de ${source.displayName}`}
+                    onClick={() => setBrowsingId(source.id)}
+                  >
+                    Explorar índice 2D
+                  </button>
+                )}
               {source.authorized && (
                 <button
                   className="secondary-button"
@@ -226,6 +246,17 @@ export function SourcesPanel({ available }: { available: boolean }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {available && browsing?.lastScan && (
+        <CatalogBrowser
+          key={`${browsing.id}:${browsing.lastScan.scanId}`}
+          sourceId={browsing.id}
+          scanId={browsing.lastScan.scanId}
+          sourceName={browsing.displayName}
+          onClose={() => setBrowsingId(null)}
+          onRefresh={refreshAfterScan}
+        />
       )}
 
       <ScanJobsPanel

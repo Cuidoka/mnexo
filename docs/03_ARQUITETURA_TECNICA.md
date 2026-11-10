@@ -1,4 +1,4 @@
-# Arquitetura — estado do MVP-005
+# Arquitetura — estado do MVP-006
 
 Fonte da proposta completa: seção 03 de `../ESPECIFICACAO_COMPLETA.md`. Este documento registra apenas o incremento implementado e não substitui a especificação.
 
@@ -38,7 +38,7 @@ SQL e escolhas de conexão estão registrados nos ADRs 0002/0004, **propostos**,
 
 ## Fronteira de segurança
 
-`src-tauri/build.rs` declara os nove comandos de aplicação em `AppManifest::commands`, que gera as permissões específicas durante o build. A capability `main`, vinculada somente à janela `main`, concede status do aplicativo, os cinco comandos de fontes e os três comandos de jobs da fixture. Não há permissões genéricas dos plugins nem origens remotas. Arquivos de permissões gerados são ignorados pelo Git.
+`src-tauri/build.rs` declara os onze comandos de aplicação em `AppManifest::commands`, que gera as permissões específicas durante o build. A capability `main`, vinculada somente à janela `main`, concede status do aplicativo, cinco comandos de fontes, três de jobs e dois de consulta ao catálogo. Não há permissões genéricas dos plugins nem origens remotas. Arquivos de permissões gerados são ignorados pelo Git.
 
 A CSP permite scripts locais e transporte IPC; a variante de desenvolvimento adiciona o Vite em `127.0.0.1:1420`. Estilos inline são permitidos para compatibilidade com o desenvolvimento Vite; scripts inline arbitrários não são habilitados por essa regra. O contexto do Tauri injeta os próprios hashes/nonces necessários.
 
@@ -82,7 +82,7 @@ A migração 002 acrescenta campos às linhas de nós e as tabelas de relatório
 
 `ScanReport`: `{sourceId, scanId, completedAt, filesCount, foldersCount, totalBytes, skippedCount, errorCount, partial, issues, issuesTruncated}`. Cada ocorrência é `{relativePath, code}`, sem mensagem interna do SO. Pasta inclui a raiz; exclusões deliberadas contam como ocorrências e tornam o resultado parcial. A política completa está no ADR 0004, **proposto**.
 
-T-002/T-003/T-004/T-005/T-006/T-008 e T-036 a T-039 cobrem metadados/persistência. A parte de T-004 relativa à abertura de arquivos e a parte de T-008 sobre ideias continuam pendentes. Navegação 2D, uso com fontes pessoais e resistência a mutações hostis durante o percurso ficam para seus tickets/revisão própria; não se declara filesystem snapshot atômico nem timeout rígido.
+T-002/T-003/T-004/T-005/T-006/T-008 e T-036 a T-039 cobrem metadados/persistência. A parte de T-004 relativa à abertura de arquivos e a parte de T-008 sobre ideias continuam pendentes. Indexação de fontes pessoais e resistência a mutações hostis durante o percurso ficam para revisão própria; não se declara filesystem snapshot atômico nem timeout rígido. A navegação 2D foi acrescentada no MVP-006 abaixo.
 
 ## Jobs e cancelamento (MVP-005 / RNF-002)
 
@@ -102,7 +102,24 @@ A UI faz polling a cada 400 ms após a resposta anterior, sem sobrepor consultas
 
 O schema permanece 2. Reiniciar o processo limpa somente o slot volátil e não dispara scan; o último índice confirmado continua no banco. Recarregar a tela recupera o job do mesmo processo. Reinício após cancelamento/falha é explícito, a partir da raiz; histórico de jobs, pausa/retomada incremental e RNF-010 continuam pendentes. ADR 0005, **proposto**, registra decisões/limites; T-007/T-041/T-042 verificam backend e UI.
 
-## Rastreabilidade e limites
+## Catálogo 2D e metadados (MVP-006 / RF-006)
+
+`SourcesPanel` oferece Explorar índice para fonte habilitada com relatório/raiz navegável. `CatalogBrowser` consulta a primeira página por sourceId/scanId e folderId null; abrir pasta, voltar ao pai/breadcrumb e consultar detalhes enviam somente IDs. Não há solicitação de scan nem acesso ao filesystem da fonte nesses caminhos. O cadastro, índice e jobs anteriores continuam separados da consulta visual.
+
+| Comando             | Entrada                                                     | Saída      |
+| ------------------- | ----------------------------------------------------------- | ---------- |
+| `get_node_children` | sourceId, scanId, folderId opcional, cursor opcional, limit | NodePage   |
+| `get_node_detail`   | sourceId, scanId, nodeId                                    | NodeDetail |
+
+NodePage contém folder (NodeDetail), breadcrumbs, items (NodeSummary) e nextCursor. NodeSummary tem id, parentId, kind file/folder, title, sizeBytes decimal ou null, sizePartial e modifiedAtMs decimal assinado ou null. NodeDetail contém sourceId/scanId/indexedAt, nome/raiz da fonte, node, path indexado, createdAtMs e parent (breadcrumb ou null). Contratos são verificados por fixture compartilhada Rust/TS; valores ausentes continuam nulos, sem virar zero.
+
+O worker valida UUIDs, autorização e scan_id corrente e abre transação DEFERRED curta. Todas as leituras de fonte/relatório/nós/pais usam essa transação e filtram source_id/scan_id/origin/tipo. O cursor UUID precisa ser filho da mesma pasta; a ordenação/keyset usa pasta antes de arquivo, título BINARY e ID, com limite 1–100 no Rust e 50 no frontend. Caminhos/breadcrumbs são verificados lexicalmente sem I/O da fonte; cadeia cíclica, pai cruzado ou caminho fora da raiz não produz navegação.
+
+O painel de detalhes mostra metadados salvos com data do índice, não presença/estado atual do arquivo. A lista diferencia pasta vazia de pasta parcial sem filhos e sinaliza tamanhos parciais. Datas são locais e bytes usam BigInt apenas para apresentação exata. Nomes/caminhos ficam como texto React. Nenhum conteúdo, abertura de arquivo no SO, busca, edição ou cena 3D é exposto.
+
+Na UI, versões de requisição descartam detalhes e páginas adicionais que chegam depois de navegar. Trocar snapshot remonta o navegador na raiz; revogar fecha o catálogo e bloqueia as próximas consultas no backend. Atualizar catálogo relê fonte/relatório, sem scan. Não há persistência de seleção/caminho visual; o schema permanece 2. ADR 0006, **proposto**, registra decisões. T-003/T-004/T-008/T-009 e T-044 a T-048 verificam contexto, paginação, snapshots, integridade e UI.
+
+## Rastreabilidade e limites do conjunto
 
 MVP-001/002 estabelecem a fundação; MVP-003 atende RF-001 para pastas locais. T-001/T-014 e T-032/T-033/T-034 cobrem consentimento, persistência, revogação, tokens e contratos. T-035 registra a inspeção nativa anterior, com limites reais. T-008 agora cobre o índice da fixture após reabrir; ideias continuam pendentes. Os resultados históricos permanecem no documento de testes.
 

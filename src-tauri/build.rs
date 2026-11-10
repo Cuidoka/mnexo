@@ -10,6 +10,8 @@ fn main() {
             "start_scan",
             "get_scan_status",
             "cancel_scan",
+            "get_node_children",
+            "get_node_detail",
         ]),
     ))
     .expect("Falha na preparação do aplicativo Tauri");

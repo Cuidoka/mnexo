@@ -1,0 +1,48 @@
+{
+  "folder": {
+    "sourceId": "00000000-0000-4000-8000-000000000001",
+    "scanId": "00000000-0000-4000-8000-000000000003",
+    "indexedAt": "2026-11-09T18:00:00.000Z",
+    "sourceName": "Documentos com espaço",
+    "sourceRootPath": "C:\\fixture\\Documentos com espaço",
+    "node": {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "parentId": null,
+      "kind": "folder",
+      "title": "Documentos com espaço",
+      "sizeBytes": "9007199254740993",
+      "sizePartial": false,
+      "modifiedAtMs": "1794222000000"
+    },
+    "path": "C:\\fixture\\Documentos com espaço",
+    "createdAtMs": "0",
+    "parent": null
+  },
+  "breadcrumbs": [
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "title": "Documentos com espaço"
+    }
+  ],
+  "items": [
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "parentId": "00000000-0000-4000-8000-000000000002",
+      "kind": "folder",
+      "title": "Coleção ç",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "parentId": "00000000-0000-4000-8000-000000000002",
+      "kind": "file",
+      "title": "áudio com espaço.wav",
+      "sizeBytes": "9007199254740993",
+      "sizePartial": false,
+      "modifiedAtMs": "1794222000000"
+    }
+  ],
+  "nextCursor": null
+}
