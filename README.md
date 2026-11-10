@@ -4,7 +4,7 @@ Aplicativo desktop em desenvolvimento para conectar arquivos reais e conheciment
 
 ## Estado real
 
-Incremento atual: **MVP-005 / RNF-002 — progresso, status e cancelamento**. A indexação da fixture autorizada passa a ser um job em segundo plano, com contagens durante a leitura e cancelamento cooperativo. O índice e o último relatório concluído permanecem no SQLite; o job atual fica em memória.
+Incremento atual: **MVP-006 / RF-006 — índice 2D e metadados**. A tela Fontes permite explorar o último índice salvo: entrar nas pastas, voltar por breadcrumbs/pasta pai e selecionar itens para consultar metadados e contexto de origem. A indexação da fixture continua explícita, em segundo plano, com progresso/cancelamento.
 
 O banco possui `sources`/`nodes` e as tabelas de relatório. O comando retorna `databaseStatus: "ready"` e `schemaVersion: 2` quando o banco está disponível; em falha retorna `"unavailable"` e `null`. A interface distingue falha do banco de falha IPC e permite tentar novamente. IA continua `"disabled"`.
 
@@ -39,6 +39,18 @@ Com a fixture recém-criada: **3 arquivos, 3 pastas e 41 bytes** (25 + 16 + 0, c
 Limites desta etapa: 1.000 entradas incluindo raiz, profundidade 16 e orçamento de 5 segundos verificado entre operações locais. Uma chamada bloqueada do filesystem não é interrompida por esse orçamento. Links/reparse points, entradas ocultas/de sistema/offline, nomes iniciados por ponto e diretórios de dependências/cache são ignorados e relatados; os totais ficam parciais. A amostra contém até 100 ocorrências, com contagem total separada. Não há estimativa da quantidade de descendentes não visitados. A fixture fica vinculada ao caminho deste checkout na compilação; após mover o projeto, prepare-a e recompile. Limites e desenho proposto: ADR 0004.
 
 Os requisitos do produto permanecem em [ESPECIFICACAO_COMPLETA.md](ESPECIFICACAO_COMPLETA.md). As decisões expressamente confirmadas estão registradas em [docs/09_DECISOES_PENDENCIAS.md](docs/09_DECISOES_PENDENCIAS.md). Este README descreve comportamento observado na implementação; não transforma propostas técnicas em requisitos aprovados.
+
+## Explorar o índice 2D (MVP-006)
+
+1. Em uma fonte autorizada que já tenha um índice navegável, clique **Explorar índice 2D**. A consulta lê o SQLite; abrir o catálogo não inicia varredura.
+2. A lista mostra os filhos da pasta atual, com pastas antes de arquivos. Clique no nome de uma pasta para entrar, no breadcrumb para voltar a um ancestral ou em **Voltar à pasta pai**.
+3. Selecione um arquivo ou clique **Detalhes** para consultar caminho indexado, tipo arquivo/pasta, tamanho lógico, datas, pasta pai, fonte e data do índice. O item atual e sua origem vêm do backend, por IDs.
+4. **Carregar mais itens** traz a próxima página de 50 filhos. O backend limita cada consulta a 100 itens, sem transferir a árvore inteira automaticamente.
+5. **Atualizar catálogo** relê fonte/snapshot salvo. Se o índice mudar, a navegação é reiniciada na raiz; se a autorização for revogada, o catálogo deixa de ser exibido. **Fechar índice** encerra só a consulta visual.
+
+São metadados armazenados, não uma confirmação do estado atual do disco. A navegação continua consultando o índice mesmo se um arquivo ficou indisponível depois de indexado, sem tentar abri-lo. Zero bytes e dado indisponível são distintos; pastas/metadados parciais são sinalizados. A parte de árvore é uma lista hierárquica navegável, sem widget de expansão de toda a árvore ou cena 3D. Datas são exibidas no horário local; valores fora do intervalo suportado pela UI permanecem explícitos como milissegundos, sem arredondar.
+
+Fonte, snapshot, pasta/item e cursor são validados no Rust em uma transação de leitura consistente. Consultas não retornam nós retidos de snapshots anteriores nem pais de outra fonte. A autorização de navegação cobre o catálogo já confirmado de uma fonte habilitada; a criação de índices continua restrita à fixture neste protótipo. Não há abertura de conteúdo ou comando do SO na navegação. O schema permanece **2**. Decisões e limites: ADR 0006, **proposto**.
 
 ## Pré-requisitos e ambiente
 
@@ -110,7 +122,7 @@ Os testes SQLite usam diretórios temporários dentro de `.tools/test-data`, sem
 ## Segurança e limites
 
 - `get_app_status` mantém o diagnóstico de versão e banco. As operações de dados do aplicativo são executadas no Rust e concedidas somente à janela `main`.
-- Os comandos são estreitos e permitidos somente na janela `main`: status, seleção/autorização/listagem/revogação de fontes e início/status/cancelamento de job. Dados entram por token ou IDs; nenhum aceita caminho livre ou SQL vindo do frontend.
+- Os comandos são estreitos e permitidos somente na janela `main`: status, seleção/autorização/listagem/revogação de fontes, início/status/cancelamento de job e consultas de filhos/detalhes do índice. Dados entram por token ou IDs; nenhum aceita caminho livre ou SQL vindo do frontend.
 - O plugin oficial de diálogo roda pelo Rust; nenhuma permissão genérica de diálogo, filesystem, shell, HTTP ou SQL é concedida ao frontend. Somente a fixture pode ter filhos enumerados, após autorização e clique explícito; não há leitura de conteúdo. O crate filesystem é dependência transitiva do plugin de diálogo, sem permissões concedidas na capability.
 - A interface usa recursos empacotados e fontes do sistema, sem CDN, telemetria, endpoints de IA ou chaves.
 - A CSP de produção permite conexão IPC local. A CSP de desenvolvimento acrescenta somente o servidor Vite no loopback.
@@ -122,6 +134,6 @@ O ícone provisório foi desenhado como SVG no projeto; o ICO é derivado pelo C
 
 `src/app` contém a tela, `src/shared/api` encapsula o IPC, `src-tauri/src/commands` contém o contrato Rust, `src-tauri/src/storage` encapsula SQLite e migrações, `src-tauri/migrations` guarda o SQL, `tests/fixtures` guarda somente contratos sintéticos e `docs` registra arquitetura, testes e decisões.
 
-O usuário solicitou, a partir do MVP-004, commit detalhado e push ao GitHub a cada passo concluído; a partir do MVP-005, também criação e merge da PR após validação. Isso não autoriza iniciar incrementos futuros nem ignorar verificações exigidas no GitHub. A PR #1 do MVP-004 foi integrada manualmente pelo usuário; este incremento parte da main atualizada. Os três documentos recebidos foram preservados. O MVP-005 mantém schema 2, permitindo reverter seu código para MVP-004 sem downgrade; versões anteriores que só entendem schema 1 recusam o banco atualizado. Backup consistente e restauração continuam pendentes.
+O usuário solicitou, a partir do MVP-004, commit detalhado e push ao GitHub a cada passo concluído; a partir do MVP-005, também criação e merge da PR após validação. Isso não autoriza iniciar incrementos futuros nem ignorar verificações exigidas no GitHub. A PR #1 do MVP-004 foi integrada manualmente pelo usuário; o MVP-005 entrou pela PR #2. O MVP-006 parte dessa main (`af4ec1e`). Os três documentos recebidos e `docs/design` são preservados. O schema continua 2, permitindo reverter o código para MVP-005 sem downgrade. Backup consistente e restauração continuam pendentes.
 
-Próximo incremento mínimo: **MVP-006 / RF-006**, árvore/lista 2D com breadcrumbs e painel dos metadados reais da fixture.
+Próximo incremento mínimo: **MVP-007 / RF-003**, cena 3D inicial derivada de uma raiz e de 10–100 nós reais do índice.

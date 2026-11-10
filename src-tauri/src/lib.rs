@@ -1,3 +1,4 @@
+mod catalog;
 mod commands;
 mod indexing;
 mod sources;
@@ -29,6 +30,8 @@ pub fn run() {
             commands::scans::start_scan,
             commands::scans::get_scan_status,
             commands::scans::cancel_scan,
+            commands::catalog::get_node_children,
+            commands::catalog::get_node_detail,
         ])
         .run(tauri::generate_context!())
         .expect("Falha ao iniciar o MNEXO");

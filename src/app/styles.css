@@ -557,3 +557,117 @@ dd {
   width: 100%;
   accent-color: #a8ded2;
 }
+.catalog-browser {
+  padding: 24px;
+  border-block: 1px solid var(--line);
+}
+.catalog-header,
+.catalog-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+}
+.catalog-header h2 {
+  font-size: 19px;
+  margin-top: 0;
+}
+.catalog-header p,
+.catalog-browser p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.catalog-breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+.catalog-breadcrumbs li + li::before {
+  content: '/';
+  margin-right: 6px;
+  color: var(--muted);
+}
+.catalog-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.8fr);
+  gap: 24px;
+  margin-top: 14px;
+}
+.catalog-layout h3 {
+  font-size: 15px;
+}
+.catalog-table-scroll {
+  overflow-x: auto;
+}
+.catalog-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.catalog-table caption {
+  text-align: left;
+  color: var(--muted);
+  padding-block: 8px;
+}
+.catalog-table th,
+.catalog-table td {
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 8px;
+  overflow-wrap: anywhere;
+}
+.catalog-table th {
+  color: var(--muted);
+  font-weight: 500;
+}
+.catalog-selected {
+  background: #203a37;
+}
+.catalog-item {
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.node-details {
+  background: #131d20;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+.node-details h3 {
+  margin-top: 0;
+}
+.node-details h4 {
+  font-weight: 500;
+  margin-block: 12px;
+}
+.node-details dt {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+.node-details dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.node-details dd p {
+  margin: 4px 0 0;
+}
+.catalog-browser .catalog-warning {
+  color: #efd1a9;
+}
+@media (max-width: 1000px) {
+  .catalog-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

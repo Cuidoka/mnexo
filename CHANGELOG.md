@@ -2,6 +2,17 @@
 
 ## Em desenvolvimento — 2026-11-09
 
+### MVP-006 / RF-006 — índice 2D e painel de metadados
+
+- Adicionadas consultas `get_node_children` e `get_node_detail`, com fonte/snapshot/IDs validados no Rust e leitura consistente do SQLite, sem consultar os arquivos da fonte.
+- Criada lista hierárquica paginada, navegação por pasta pai/breadcrumbs e painel com caminho, tipo, bytes, datas, origem e fonte do item; pastas vazias, zero bytes e metadados parciais/ausentes são distintos.
+- Ordenação fixa e cursor UUID consultado no backend; páginas padrão de 50, com limite Rust de 100. Caminhos não são argumentos IPC e não determinam a identidade dos nós.
+- Revogação bloqueia consultas e fecha o catálogo na UI; mudança de snapshot exige atualização/reinicia na raiz, sem misturar páginas, detalhes ou dados retidos antigos.
+- Mantidos schema 2 e scanner da fixture. Navegar consulta o índice salvo, sem nova varredura, abertura de conteúdo ou escrita nas fontes. Não há dependências ou permissões genéricas novas.
+- Acrescentada rastreabilidade T-003/T-004/T-008/T-009 e T-044 a T-048 para hierarquia, metadados reais, paginação, contexto, permissões, integridade e UI/contratos. ADR 0006 permanece **proposto**.
+
+Resultados de validação e limitações: `docs/08_TESTES_E_CRITERIOS.md`.
+
 ### MVP-005 / RNF-002 — progresso, status e cancelamento
 
 - Substituído o IPC de indexação com espera até o fim por `start_scan`, `get_scan_status` e `cancel_scan`, com ID de job emitido no Rust e um único job ativo por processo.

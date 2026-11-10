@@ -258,3 +258,56 @@ O executável final foi recompilado após corrigir o aviso. Ao iniciar a verific
 ### Limites
 
 Sem promessa de interrupção imediata de uma chamada bloqueada, tempo absoluto de cancelamento ou 60 FPS. Sem pausa/retomada por checkpoint, histórico persistente, concorrência entre múltiplos processos, scan de pastas pessoais, navegação 2D/3D, conteúdo ou IA. RNF-010 permanece parcial/pendente. Não foram testados perda de energia, crash durante COMMIT, outras máquinas, instaladores ou conexão fisicamente desligada. ADR 0005 continua **proposto**.
+
+## MVP-006 / RF-006 — catálogo 2D e metadados (09/11/2026)
+
+Base: main `af4ec1e`, após PR #2 do MVP-005. O catálogo já possuía hierarquia, metadados e snapshot; não existiam consultas/visualização de nós. O incremento mantém schema 2 e consulta exclusivamente metadados persistidos, sem varrer ou abrir os arquivos da fonte.
+
+### Casos executados
+
+| ID                      | Cobertura real                                                                                                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T-003/T-004/T-009/T-044 | Indexação de árvore sintética real, leitura de raiz/filhos/detalhes, breadcrumbs, pai e origem, Unicode/espaços, pasta vazia, arquivo zero bytes e soma de pasta. Consulta do catálogo conserva os bytes do banco e dos arquivos sintéticos.     |
+| T-008/T-044             | Reabrir o banco e consultar metadados salvos de arquivo sintético removido depois do scan; o catálogo não exige que o arquivo ainda esteja acessível.                                                                                            |
+| T-045                   | Paginação keyset de 122 filhos em três páginas, sem lacunas/duplicações; pastas antes de arquivos, limite Rust de 1–100 e cursor de outra pasta recusado.                                                                                        |
+| T-046                   | Snapshot anterior e nós retidos são recusados depois de reindexar; UUID da raiz preservado; revogação bloqueia filhos/detalhes. Na UI, revogar fecha o catálogo e atualizar snapshot remonta na raiz.                                            |
+| T-047                   | IDs inválidos/injeção não viram SQL, nós/pais de outra fonte não são retornados, ciclos e caminhos fora da raiz são recusados. Ausência de snapshot e de raiz navegável possuem erros distintos.                                                 |
+| T-044/T-048             | Bytes i64 acima de 2^53 preservados em string; zero é diferente de null; datas ausentes, anteriores a epoch e fora da faixa da UI são apresentadas sem arredondamento ou Invalid Date.                                                           |
+| T-009/T-048             | UI com mocks: seleção de arquivo, detalhes, pasta vazia, retorno por pai/breadcrumb e ativação por teclado, carregar mais, erro/repetição e atualização após mudança de snapshot.                                                                |
+| T-048                   | Página/detalhe atrasados depois de navegar são ignorados; nomes são texto, sem HTML executável. Fixture Rust/TS verifica contrato, contexto de fonte/snapshot, vínculos e limites da resposta. Navegador sem Tauri não recebe catálogo fictício. |
+
+Os testes Rust criam fontes/bancos somente em `.tools/test-data`. A indisponibilidade de arquivo é simulada removendo apenas o arquivo criado pelo próprio teste; nenhuma fonte real é alterada. Testes que adulteram relações/dados fazem isso apenas no banco sintético para verificar recusa segura. A suíte da UI usa mocks declarados, sem afirmar que substitui o IPC real.
+
+### Comandos e resultados observados
+
+| Comando                                                                                             | Resultado real                                                               |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `cargo test --manifest-path src-tauri/Cargo.toml --locked --offline`                                | 51 testes Rust passaram; zero falhas.                                        |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --all-targets -- -D warnings` | Passou.                                                                      |
+| `pnpm test`                                                                                         | 10 arquivos; 107 testes passaram; zero falhas.                               |
+| `pnpm typecheck` e `pnpm lint`                                                                      | Passaram.                                                                    |
+| `pnpm desktop:build`                                                                                | Passou, incluindo build frontend de 29 módulos e executável Windows release. |
+
+Cargo foi executado após `Use-LocalRust.ps1`, com `CARGO_INCREMENTAL=0` somente no processo. A primeira execução Rust teve 50 passes e uma falha na comparação textual do caminho esperado com separadores mistos; construir o caminho esperado com joins por componente corrigiu o teste. A primeira execução frontend teve 104 passes e uma consulta de teste ambígua, pois a raiz aparece tanto em caminho do item quanto em origem; a asserção foi ajustada. As repetições completas passaram, sem alterar o produto para contornar os testes.
+
+### T-049 — inspeção nativa e limite encontrado
+
+Formatação final: `pnpm format:check`, `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` e `git diff --check` passaram. O formatter de normalização do checkout Windows operou somente sobre arquivos rastreados, respeitando o ignore dos três originais e sem incluir docs/design. Os três documentos originais continuam sem diff. A capability gerada contém exatamente os onze comandos previstos, janela main e origem local, sem permissões genéricas novas.
+
+O binário foi gerado e acionado para a verificação. Ao tentar capturar a janela, Computer Use retornou interrupção pelo Escape físico. O usuário autorizou explicitamente retomar; a nova tentativa de listar janelas retornou a mesma interrupção. A automação foi encerrada sem novos comandos de interface. Lista, breadcrumbs e painel completos no executável nativo: **NÃO TESTADOS** nesta entrega. O resultado funcional acima vem dos testes reais de SQLite/backend e da UI com mocks.
+
+Antes da tentativa, consulta independente em SQLite somente leitura confirmou schema 2, três fontes, seis nós da fixture, um relatório (3 arquivos/3 pastas/41 bytes/zero ocorrências), integridade ok e zero violações de FK. Isso confirma a existência do índice usado como alvo da verificação, sem afirmar que a navegação nativa foi concluída.
+
+Nova abertura independente do SQLite após a tentativa retornou o mesmo scan_id e checksum do banco, com as mesmas contagens. Nenhuma indexação foi iniciada nesta verificação.
+
+### Repetir manualmente
+
+1. Abrir o desktop com fixture autorizada e indexada e clicar **Explorar índice 2D** na fonte mvp-004.
+2. Conferir raiz, caminho/bytes/datas/fonte no painel e lista de filhos; selecionar raiz.txt deve mostrar os metadados salvos do arquivo, sem abri-lo.
+3. Abrir Coleção ç, depois Vazia; conferir vazio/zero e breadcrumb completo. Voltar pela pasta pai e pelo breadcrumb da raiz.
+4. Consultar Detalhes de arquivo/pasta, fechar/reabrir o índice e conferir que não ocorre scan automático.
+5. Em fixture sintética com mais de 50 filhos, carregar a página adicional; durante reindexação, atualizar catálogo deve usar o novo snapshot e retornar à raiz. Revogar a fixture deve fechar a consulta.
+
+### Limites
+
+RF-006 cobre nós filesystem do catálogo confirmado de fonte habilitada; o scanner continua limitado à fixture. Não há prévia/abertura de conteúdo, abertura no SO, busca, edição, expansão recursiva automática, árvore 3D, seleção persistida ou reconciliação de renomeações. T-004 relativo à abertura de arquivos e T-008 relativo a ideias continuam pendentes. Não foram testados GUI nativa completa, leitor de tela real, outras máquinas, volumes externos, corrupção física do banco ou benchmarks de grandes catálogos. ADR 0006 permanece **proposto**. A pasta docs/design fica fora do incremento.
