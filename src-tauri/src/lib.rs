@@ -16,6 +16,7 @@ pub fn run() {
                 .map(|directory| directory.join("mnexo.sqlite3"));
             app.manage(storage::Storage::new(path));
             app.manage(sources::SourceSelections::default());
+            app.manage(indexing::jobs::ScanJobs::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -25,7 +26,9 @@ pub fn run() {
             commands::sources::add_scan_source,
             commands::sources::list_scan_sources,
             commands::sources::revoke_scan_source,
-            commands::sources::index_fixture_source,
+            commands::scans::start_scan,
+            commands::scans::get_scan_status,
+            commands::scans::cancel_scan,
         ])
         .run(tauri::generate_context!())
         .expect("Falha ao iniciar o MNEXO");

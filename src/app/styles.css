@@ -539,3 +539,21 @@ dd {
 .scan-report summary {
   cursor: pointer;
 }
+.scan-jobs {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.scan-jobs h3 {
+  font-size: 15px;
+}
+.scan-jobs p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.scan-jobs button {
+  margin: 8px 12px 0 0;
+}
+.scan-jobs progress {
+  width: 100%;
+  accent-color: #a8ded2;
+}

@@ -2,6 +2,18 @@
 
 ## Em desenvolvimento — 2026-11-09
 
+### MVP-005 / RNF-002 — progresso, status e cancelamento
+
+- Substituído o IPC de indexação com espera até o fim por `start_scan`, `get_scan_status` e `cancel_scan`, com ID de job emitido no Rust e um único job ativo por processo.
+- Adicionados progresso e estados running/cancelling/publishing/completed/cancelled/failed; consultas e solicitação de cancelamento não dependem do I/O do scanner nem de conexão SQLite.
+- Implementados checkpoints cooperativos e limite explícito de cancelamento antes da publicação transacional. Pedido não é confirmação; cancelamento confirmado descarta o trabalho e preserva o índice anterior.
+- Mantidos schema 2, fixture autorizada, limites, política de exclusões e leitura somente de metadados. Jobs ficam em memória e novas tentativas começam do início, sem retomada automática.
+- Acrescentado painel acessível com contagens, barra indeterminada, polling sem sobreposição, descarte de respostas antigas e recarga do relatório após término. Operações de fontes continuam utilizáveis durante o scan.
+- Estendidos T-007/T-008/T-037 e T-041/T-042 para controle durante I/O bloqueado, concorrência, fronteira de publicação, reinício, falhas, contrato Rust/TS e UI.
+- Registrada autorização do usuário para abrir e integrar as próximas PRs após validação. ADR 0005 permanece **proposto**.
+
+Comandos, resultados e limites: `docs/08_TESTES_E_CRITERIOS.md`.
+
 ### MVP-004 / RF-002 — metadados da fixture
 
 - Adicionado preparo explícito de fixture sintética, preservando arquivos existentes, e scanner restrito no backend ao caminho fixo dessa fixture autorizada.

@@ -15,7 +15,7 @@ use crate::{
     storage::{test_directory, Storage},
 };
 
-fn setup() -> (tempfile::TempDir, Storage, PathBuf, String) {
+pub(super) fn setup() -> (tempfile::TempDir, Storage, PathBuf, String) {
     let temp = test_directory();
     let root = temp.path().join("Fixture ç com espaço");
     fs::create_dir_all(root.join("Coleção ç/Vazia")).unwrap();

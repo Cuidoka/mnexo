@@ -10,6 +10,8 @@
     "allow-add-scan-source",
     "allow-list-scan-sources",
     "allow-revoke-scan-source",
-    "allow-index-fixture-source"
+    "allow-start-scan",
+    "allow-get-scan-status",
+    "allow-cancel-scan"
   ]
 }

@@ -12,6 +12,13 @@ import {
 import { App } from './App';
 import { listScanSources } from '../shared/api/scan-sources';
 
+vi.mock('../shared/api/scan-jobs', () => ({
+  getScanStatus: async () => null,
+  startScan: vi.fn(),
+  cancelScan: vi.fn(),
+  jobActive: () => false,
+}));
+
 vi.mock('../shared/api/scan-sources', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../shared/api/scan-sources')>()),
   listScanSources: vi.fn(),

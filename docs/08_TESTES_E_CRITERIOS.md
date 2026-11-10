@@ -202,3 +202,59 @@ Confirmação, indexação, apresentação do relatório e reabertura desse rela
 ### Limites do incremento
 
 RF-002 continua restrito à fixture do checkout de compilação. Não há scan geral, progresso/cancelamento, árvore 2D/3D, leitura de conteúdo, envio remoto ou IA. Não foram testados volumes externos, nomes não UTF-8, troca maliciosa de diretórios durante o percurso, perda de energia, outras máquinas ou instaladores. T-005 usa falhas controladas, sem afirmar validação de todas as ACLs Windows. Backup/restauração, identidade do filesystem e retenção/limpeza do índice seguem pendentes. ADR 0004 permanece **proposto**.
+
+## MVP-005 / RNF-002 — progresso, status e cancelamento (09/11/2026)
+
+Base observada: main `08bf305`, com PR #1 integrada manualmente pelo usuário. O scanner anterior já usava worker, mas aguardava o fim no IPC e aplicava busy global à tela. O incremento mantém schema 2 e o escopo da fixture; não adiciona banco/histórico de jobs.
+
+### Casos executados
+
+| ID                | Cobertura real                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-007/T-041       | Um único job ativo por processo; início concorrente recusado, IDs antigos não cancelam job novo, pedido muda para cancelling e somente a saída do worker confirma cancelled.                                                                                                                                                                                                                                                                 |
+| T-007/T-008       | Worker real de teste aguarda uma barreira dentro de metadata; uma thread independente consulta status e solicita cancelamento antes da liberação, com resposta recebida dentro do limite de 2 s do teste. Outra consulta SQLite continua disponível. Após liberar o I/O, o worker confirma cancelamento e preserva snapshot anterior. Nova tentativa parte do zero e conclui com contagens corretas. Não é benchmark de latência nem de FPS. |
+| T-007/T-041       | Pedido na fronteira anterior à publicação descarta trabalho e conserva relatório; pedido após entrar em publishing retorna SCAN_FINISHING, sem anunciar cancelamento/rollback de COMMIT.                                                                                                                                                                                                                                                     |
+| T-037/T-041       | Fonte revogada termina failed com código público e libera o slot; fixture, limites e checagens de autorização anteriores continuam cobertos pela suíte de metadados.                                                                                                                                                                                                                                                                         |
+| T-042             | Fixture JSON compartilhada Rust/TS com jobId/sourceId, estados e contagens, incluindo bytes acima de 2^53; respostas inconsistentes, origem/ID de job incorretos e execução no navegador são recusados.                                                                                                                                                                                                                                      |
+| T-007/T-039/T-042 | UI com mocks: nenhum início automático, botão de cancelar ativo durante execução, pedido distinto de confirmação, reinício, fase de publicação, relatório recarregado uma vez por término e ações de fontes habilitadas durante o scan.                                                                                                                                                                                                      |
+| T-042             | Polling sequencial, resposta antiga não apaga um job recém-iniciado, falha de consulta preserva último estado conhecido e se recupera, desmontagem interrompe polling e ignora resposta tardia.                                                                                                                                                                                                                                              |
+
+O teste de I/O bloqueado usa canais/barreira, com timeout de proteção de cinco segundos, sem adicionar atrasos ao scanner de produção. Arquivos/bancos são fixtures próprias em `.tools/test-data`; o teste compara conteúdo sintético preservado. Os testes de UI declaram mocks e controle de tempo; não são E2E nativo.
+
+### Comandos e resultados
+
+| Comando                                                                                             | Resultado observado                          |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `cargo test --manifest-path src-tauri/Cargo.toml --locked --offline`                                | 43 testes Rust passaram; zero falhas.        |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --all-targets -- -D warnings` | Passou.                                      |
+| `pnpm test`                                                                                         | 7 arquivos; 76 testes passaram; zero falhas. |
+| `pnpm lint`                                                                                         | Passou, zero warnings permitidos.            |
+| `pnpm typecheck`                                                                                    | Passou.                                      |
+
+Cargo foi executado com `Use-LocalRust.ps1` e `CARGO_INCREMENTAL=0` somente no processo. A primeira execução frontend teve 73 passes e três timeouts na combinação de user-event com timers falsos. Os testes específicos de polling passaram a usar eventos click explícitos dentro de act e avanço controlado do relógio; os fluxos de tela Fontes continuam usando user-event. A repetição da suíte completa passou. O produto não recebeu atrasos artificiais ou mudanças de tempo para contornar o teste.
+
+`pnpm desktop:build` passou, incluindo `pnpm build` (25 módulos) e executável Windows release. `pnpm format`, `pnpm format:check`, `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` e `git diff --check` passaram. Os três documentos originais continuam sem diff. Após o checkout da main, o Git normalizou CRLF no worktree; a comparação/publicação usa normalização de texto, sem incluir mudanças de conteúdo não relacionadas ao incremento.
+
+### T-043 — inspeção nativa
+
+O executável abriu com banco pronto, as duas fontes existentes preservadas e o novo painel indicando nenhum job. A fixture `.tools/fixtures/mvp-004` foi selecionada pelo diálogo nativo e autorizada pela confirmação do aplicativo. Antes do clique de indexação, o painel continuou sem job. A ferramenta inicialmente não resolveu um elemento em cache do diálogo; a navegação por seu campo de endereço permitiu concluir a seleção sem usar comandos de shell.
+
+O clique em **Indexar metadados da fixture** mostrou running, barra indeterminada e botão **Cancelar varredura**. A consulta seguinte mostrou completed: seis entradas visitadas, três arquivos, três pastas, 41 bytes, zero ignoradas e zero ocorrências. A UI carregou o relatório persistido com os mesmos totais. A inspeção encontrou o aviso anterior de autorização ainda visível após iniciar o scan; a correção limpa esse aviso no início e foi incluída no teste da tela Fontes. A suíte frontend final voltou a passar.
+
+Consulta independente em SQLite somente leitura confirmou schema 2, três fontes, seis nós (todos da fixture), um relatório, `integrity_check = ok` e zero violações de FK. Fontes pessoais não receberam nós nem foram varridas. O teste só adicionou a fonte sintética e seus metadados na instância real.
+
+Uma nova abertura independente do SQLite após recompilar confirmou o mesmo scan_id e checksum do banco, sem alterações. A capability gerada contém somente os nove comandos estreitos previstos, janela main e origem local; o comando antigo de scan não existe mais no handler nem na capability.
+
+O executável final foi recompilado após corrigir o aviso. Ao iniciar a verificação de reabertura, o usuário interrompeu o Computer Use com Escape; a automação da interface foi encerrada. Reabertura completa do executável final e cancelamento confirmado pela GUI nativa em scan prolongado: **NÃO TESTADOS**; a fixture pequena termina rapidamente. O controle sob I/O bloqueado é validado no backend real de teste, e o fluxo de pedido/confirmação na UI usa mocks declarados. Não se confunde essa cobertura com benchmark nativo de latência/FPS.
+
+### Procedimento manual
+
+1. Preparar a fixture com `pnpm fixture:prepare`; selecionar/autorizar somente `.tools/fixtures/mvp-004`.
+2. Conferir **Andamento da indexação**, inicialmente sem job, sem scan automático. Clicar **Indexar metadados da fixture** e observar contagens/status; em árvore muito pequena pode concluir antes da próxima consulta.
+3. Durante running, clicar **Cancelar varredura**. Conferir primeiro pedido e depois confirmação; relatório anterior deve continuar disponível. Em publishing, o cancelamento não é oferecido.
+4. Iniciar novamente por clique. Deve começar da raiz e atualizar relatório somente ao terminar; verificar fontes/listagem/revogação durante o percurso.
+5. Recarregar apenas a tela recupera o último job do mesmo processo. Fechar/reabrir o processo limpa o estado do job e mantém o último índice/relatório salvo, sem nova varredura.
+
+### Limites
+
+Sem promessa de interrupção imediata de uma chamada bloqueada, tempo absoluto de cancelamento ou 60 FPS. Sem pausa/retomada por checkpoint, histórico persistente, concorrência entre múltiplos processos, scan de pastas pessoais, navegação 2D/3D, conteúdo ou IA. RNF-010 permanece parcial/pendente. Não foram testados perda de energia, crash durante COMMIT, outras máquinas, instaladores ou conexão fisicamente desligada. ADR 0005 continua **proposto**.
