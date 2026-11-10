@@ -1,5 +1,31 @@
 # Changelog
 
+## Em desenvolvimento — 2026-11-09
+
+### MVP-004 / RF-002 — metadados da fixture
+
+- Adicionado preparo explícito de fixture sintética, preservando arquivos existentes, e scanner restrito no backend ao caminho fixo dessa fixture autorizada.
+- Indexação somente por clique/ID, com revalidação de autorização durante a leitura e antes da publicação; iniciar, listar ou autorizar não dispara scan.
+- Persistidos nome, caminho, tipo, hierarquia, bytes lógicos e datas do filesystem; soma de pastas inclui descendentes acessíveis e sinaliza parcialidade.
+- Criada migração 002 aditiva e publicação transacional do snapshot/relatório. Reindexação preserva IDs; registros antigos permanecem fora do snapshot atual, sem deleção de fontes/nós.
+- Exibidos contagens, data e relatório de erros/exclusões, com bytes em string decimal, até 100 amostras e total de ocorrências separado.
+- Recusados links/reparse e raízes fora da fixture; limites de entradas/profundidade/tempo e exclusões conservadoras documentados no ADR 0004, **proposto**.
+- Estendida rastreabilidade T-002/T-003/T-004/T-005/T-006/T-008 e T-036 a T-039 para persistência, escopo, rollback, limites e contrato/UI. Sem leitura de conteúdo, rede ou IA.
+- Registrada a instrução do usuário de detalhar cada passo concluído em commit e enviá-lo ao GitHub. Progresso/cancelamento permanecem no MVP-005.
+
+Resultados reais e limites de teste: `docs/08_TESTES_E_CRITERIOS.md`.
+
+### MVP-003 / RF-001 — fontes autorizadas
+
+- Adicionados diálogo nativo de pasta, revisão do caminho e autorização explícita por token volátil de uso único, sem scan automático.
+- Implementadas listagem persistida e revogação não destrutiva. Reautorizar o mesmo caminho canônico preserva ID/data da fonte, sem duplicação.
+- Caminhos e UUIDs são determinados no Rust; o frontend não envia caminho livre, SQL ou comandos do SO. Erros retornam códigos sanitizados.
+- Mantidos schema 1 e dados existentes; nenhuma fonte é cadastrada ou consultada no filesystem automaticamente ao iniciar.
+- Adicionados testes de T-001/T-014 e T-032 a T-034 para consentimento, cancelamento, tokens, revalidação, Unicode, deduplicação, persistência e revogação. Inspeção nativa registrada em T-035.
+- Scanner de metadados permanece no MVP-004 / RF-002. Rede, conteúdo de arquivos, IA e remoção permanente de cadastro continuam fora deste incremento.
+
+Decisões propostas: ADR 0003. Comandos, resultados e limites reais: `docs/08_TESTES_E_CRITERIOS.md`.
+
 ## Em desenvolvimento — 2026-10-29
 
 ### MVP-002 — SQLite e migração (RNF-004)

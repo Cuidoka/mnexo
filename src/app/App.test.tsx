@@ -10,6 +10,12 @@ import {
   type AppStatus,
 } from '../shared/api/app-status';
 import { App } from './App';
+import { listScanSources } from '../shared/api/scan-sources';
+
+vi.mock('../shared/api/scan-sources', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../shared/api/scan-sources')>()),
+  listScanSources: vi.fn(),
+}));
 
 vi.mock('../shared/api/app-status', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../shared/api/app-status')>()),
@@ -18,6 +24,7 @@ vi.mock('../shared/api/app-status', async (importOriginal) => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(listScanSources).mockResolvedValue([]);
 });
 
 describe('T-026 — estados da primeira janela', () => {
@@ -36,7 +43,7 @@ describe('T-026 — estados da primeira janela', () => {
     expect(
       screen.queryByText('Conexão local verificada'),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Verificando…' })).toBeDisabled();
 
     await act(async () => resolveStatus(parseAppStatus(fixture)));
 

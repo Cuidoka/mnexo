@@ -4,11 +4,35 @@ Aplicativo desktop em desenvolvimento para conectar arquivos reais e conheciment
 
 ## Estado real
 
-Incremento atual: **MVP-002 — persistência SQLite**, sobre a fundação MVP-001. A primeira tela é **Fontes** e consulta o backend local; possui carregamento, erro sanitizado e nova tentativa. O backend abre o SQLite local, aplica a migração inicial e informa a versão de schema realmente lida do banco.
+Incremento atual: **MVP-004 / RF-002 — metadados de fixture autorizada**. A tela Fontes mantém seleção, autorização e revogação e acrescenta um botão explícito de indexação somente para a fixture sintética deste checkout. O índice e o último relatório de contagens/erros são persistidos no SQLite.
 
-O banco possui a base de catálogo `sources`/`nodes`, inicialmente vazia. O comando retorna `databaseStatus: "ready"` e `schemaVersion: 1` quando o banco está disponível; em falha retorna `"unavailable"` e `null`. A interface distingue falha do banco de falha IPC e permite tentar novamente. IA continua `"disabled"`.
+O banco possui `sources`/`nodes` e as tabelas de relatório. O comando retorna `databaseStatus: "ready"` e `schemaVersion: 2` quando o banco está disponível; em falha retorna `"unavailable"` e `null`. A interface distingue falha do banco de falha IPC e permite tentar novamente. IA continua `"disabled"`.
 
-Autorização de pastas, indexação, edição de ideias, busca do produto, 3D e integração de IA **ainda não estão implementados**. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
+Indexação de pastas pessoais, progresso/cancelamento, edição de ideias, busca do produto, 3D e integração de IA **ainda não estão implementados**. Autorizar não inicia varredura. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
+
+## Adicionar e revogar uma fonte
+
+1. Na janela desktop, aguarde o banco ficar “Pronto” e clique **Selecionar pasta**.
+2. Escolha uma pasta local existente no diálogo do Windows.
+3. Revise o caminho mostrado e clique **Autorizar pasta**, ou **Cancelar autorização** para descartar a seleção.
+4. A fonte aparecerá como **Autorizada para metadados**. Fechar/reabrir carrega a lista do SQLite, sem consultar o conteúdo das pastas.
+5. **Revogar autorização** desabilita a fonte e mantém a linha como revogada; não apaga arquivos ou registros vinculados. Para autorizar novamente, selecione a pasta outra vez.
+
+A autorização é para metadados dessa raiz. Leitura de conteúdo e envio remoto continuam separados e indisponíveis. Cancelar o diálogo ou a confirmação não persiste uma fonte. Selecionar novamente o mesmo caminho canônico reutiliza o ID; nenhuma fonte é adicionada na inicialização.
+
+Escopo atual: pastas locais; caminhos UNC/de rede e raízes que sejam links simbólicos/junções são recusados. Não há leitura de conteúdo nem remoção permanente do cadastro. A raiz é validada antes da confirmação e novamente antes da gravação. Links intermediários podem ser resolvidos pela canonicalização na seleção; o scanner da fixture também recusa links nos ancestrais. Renomeações e identidade estável do filesystem continuam no RF-011.
+
+## Indexar a fixture (MVP-004)
+
+1. Na raiz do projeto, execute `pnpm fixture:prepare`. O script cria somente dados sintéticos em `.tools/fixtures/mvp-004`, incluindo uma pasta vazia e um arquivo de zero bytes. Arquivos já existentes são preservados.
+2. No aplicativo desktop, selecione exatamente essa pasta e confirme **Autorizar pasta**. A autorização não inicia indexação.
+3. Clique **Indexar metadados da fixture**. O backend recebe apenas o ID e recusa outras raízes, inclusive fontes pessoais já autorizadas.
+4. Confira arquivos, pastas (inclui a raiz), bytes lógicos, entradas ignoradas e ocorrências. Abra o relatório de erros/exclusões se o resultado for parcial.
+5. Feche/reabra o aplicativo: o relatório é recarregado do banco, sem nova varredura. Repetir o clique atualiza o snapshot e preserva IDs dos caminhos conhecidos.
+
+Com a fixture recém-criada: **3 arquivos, 3 pastas e 41 bytes** (25 + 16 + 0, conferidos no filesystem). Se você modificar os dados sintéticos, as contagens refletem a árvore atual. Nenhum conteúdo é lido pelo scanner: somente nome, tipo arquivo/pasta, caminho, hierarquia, tamanho e datas de criação/modificação.
+
+Limites desta etapa: 1.000 entradas incluindo raiz, profundidade 16 e orçamento de 5 segundos verificado entre operações locais. Uma chamada bloqueada do filesystem não é interrompida por esse orçamento. Links/reparse points, entradas ocultas/de sistema/offline, nomes iniciados por ponto e diretórios de dependências/cache são ignorados e relatados; os totais ficam parciais. A amostra contém até 100 ocorrências, com contagem total separada. Não há estimativa da quantidade de descendentes não visitados. A fixture fica vinculada ao caminho deste checkout na compilação; após mover o projeto, prepare-a e recompile. Limites e desenho proposto: ADR 0004.
 
 Os requisitos do produto permanecem em [ESPECIFICACAO_COMPLETA.md](ESPECIFICACAO_COMPLETA.md). As decisões expressamente confirmadas estão registradas em [docs/09_DECISOES_PENDENCIAS.md](docs/09_DECISOES_PENDENCIAS.md). Este README descreve comportamento observado na implementação; não transforma propostas técnicas em requisitos aprovados.
 
@@ -58,7 +82,7 @@ Gera o executável em `src-tauri/target/release/mnexo.exe`. Instaladores, assina
 
 Destino fixo do backend: `app_local_data_dir()/mnexo.sqlite3`, normalmente `%LOCALAPPDATA%\com.mnexo.desktop\mnexo.sqlite3` no Windows. A persistência grava somente no diretório próprio do aplicativo. Caminho e SQL não são recebidos do frontend. Não há importação, enumeração ou leitura de fontes pessoais.
 
-A migração `src-tauri/migrations/001_initial.sql` é nova, derivada da especificação; o SQL citado pelo pacote original não foi fornecido. A versão (`PRAGMA user_version`) e a identificação provisória do aplicativo (`PRAGMA application_id`, MNEX) são gravadas na mesma transação do schema. Aberturas seguintes preservam os dados e habilitam chaves estrangeiras em cada conexão. Arquivos inválidos, bancos não reconhecidos ou versões mais novas são recusados, sem recriar ou zerar o banco.
+As migrações `001_initial.sql` e `002_metadata_index.sql` são novas, derivadas da especificação; o SQL citado pelo pacote original não foi fornecido. A 002 acrescenta campos de metadados e relatórios, preservando fontes/autorização/nós existentes. A versão (`PRAGMA user_version`) e a identificação provisória do aplicativo (`PRAGMA application_id`, MNEX) são gravadas na mesma transação do schema. Aberturas seguintes preservam os dados e habilitam chaves estrangeiras em cada conexão. Arquivos inválidos, bancos não reconhecidos ou versões mais novas são recusados, sem recriar ou zerar o banco.
 
 Usa `rusqlite 0.41.1` com SQLite incorporado `3.54.1`, sem servidor ou instalação SQLite separada. Operações de abertura/migração rodam em uma tarefa de bloqueio separada da UI, com espera de lock limitada a 2 segundos. Cada tentativa reabre o banco e pode recuperar uma falha transitória.
 
@@ -77,12 +101,13 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked
 
 O contrato JSON compartilhado é verificado no Rust e no TypeScript. Os testes do frontend usam mocks explicitamente; não substituem abrir a janela e verificar o IPC real. Cenários e resultados: [docs/08_TESTES_E_CRITERIOS.md](docs/08_TESTES_E_CRITERIOS.md).
 
-Os testes SQLite usam diretórios temporários dentro de `.tools/test-data`, sem arquivos pessoais, e verificam reabertura, Unicode, integridade, FKs, precisão de inteiros, concorrência, rollback e FTS5. A aprovação de persistência cobre **RNF-004** e parcialmente **T-008**; não significa que índice de arquivos ou ideias já existam. Backup automático e restauração do produto não fazem parte deste incremento.
+Os testes SQLite usam diretórios temporários dentro de `.tools/test-data`, sem arquivos pessoais, e verificam reabertura, Unicode, integridade, FKs, precisão de inteiros, concorrência, rollback, metadados e FTS5 sintético. **T-008** cobre o índice da fixture; a parte de ideias continua pendente. Backup automático e restauração do produto não fazem parte deste incremento.
 
 ## Segurança e limites
 
-- O único comando de aplicação é `get_app_status`, sem argumentos de usuário. Sua permissão é concedida somente à janela `main`; a leitura/escrita é limitada ao banco interno pelo código Rust.
-- Não há plugins de filesystem, shell, HTTP, diálogo ou SQL; nenhuma fonte pessoal é enumerada ou lida pelo aplicativo.
+- `get_app_status` mantém o diagnóstico de versão e banco. As operações de dados do aplicativo são executadas no Rust e concedidas somente à janela `main`.
+- Os comandos de fontes são estreitos e permitidos somente na janela `main`: escolha nativa, cancelamento, confirmação por token, listagem, revogação e indexação de fixture por ID. Nenhum aceita caminho livre ou SQL vindo do frontend.
+- O plugin oficial de diálogo roda pelo Rust; nenhuma permissão genérica de diálogo, filesystem, shell, HTTP ou SQL é concedida ao frontend. Somente a fixture pode ter filhos enumerados, após autorização e clique explícito; não há leitura de conteúdo. O crate filesystem é dependência transitiva do plugin de diálogo, sem permissões concedidas na capability.
 - A interface usa recursos empacotados e fontes do sistema, sem CDN, telemetria, endpoints de IA ou chaves.
 - A CSP de produção permite conexão IPC local. A CSP de desenvolvimento acrescenta somente o servidor Vite no loopback.
 - Instalação de dependências e compilação podem usar rede. Isso é distinto da execução do aplicativo empacotado.
@@ -93,6 +118,6 @@ O ícone provisório foi desenhado como SVG no projeto; o ICO é derivado pelo C
 
 `src/app` contém a tela, `src/shared/api` encapsula o IPC, `src-tauri/src/commands` contém o contrato Rust, `src-tauri/src/storage` encapsula SQLite e migrações, `src-tauri/migrations` guarda o SQL, `tests/fixtures` guarda somente contratos sintéticos e `docs` registra arquitetura, testes e decisões.
 
-Um repositório Git próprio foi inicializado na branch `codex/mvp-001`; não há commit automático. Os três documentos recebidos foram preservados. O rollback deve reverter somente o código deste incremento após revisão, preservando o banco. Não existe downgrade automático: o MVP-001 não lê ou altera SQLite. Migrações com erro revertem sua transação; nenhuma rotina apaga bancos incompatíveis. Antes de uma evolução futura sobre dados relevantes, será necessário implementar backup consistente e testar restauração.
+O usuário solicitou, a partir do MVP-004, commit detalhado e push ao GitHub a cada passo concluído. Isso não autoriza iniciar incrementos futuros. Os três documentos recebidos foram preservados. O rollback deve reverter somente o código após revisão, preservando o banco; versões antigas que suportam apenas schema 1 recusam schema 2. Não existe downgrade automático nem rotina que apague bancos incompatíveis. Migrações com erro revertem sua transação. Backup consistente e restauração continuam pendentes.
 
-Próximo incremento mínimo: **MVP-003 / RF-001**, diálogo de pasta, autorização explícita e fonte persistida, sem scan automático.
+Próximo incremento mínimo: **MVP-005 / RNF-002**, status/progresso e cancelamento de scan, com validação da resposta da UI.

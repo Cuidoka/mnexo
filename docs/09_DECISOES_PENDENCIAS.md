@@ -19,14 +19,21 @@ Na sequência, o usuário autorizou explicitamente o **MVP-002 — SQLite com mi
 
 ## Propostas técnicas
 
+Em 09/11/2026, o usuário autorizou **MVP-004 / RF-002**: indexar somente metadados de uma pasta de fixture autorizada, com contagens e relatório de erros. Também solicitou commit detalhado e push ao GitHub em cada passo concluído daqui em diante. A autorização não abrange iniciar novos incrementos, indexar pastas pessoais, ler conteúdo ou enviar dados privados.
+
+Em 09/11/2026, o usuário autorizou o **MVP-003 / RF-001**: selecionar e autorizar uma pasta, persistindo a fonte sem scan automático. O incremento inclui revogação não destrutiva, conforme o requisito confirmado RF-001. Essa autorização não estende o escopo a indexação, conteúdo ou envio remoto.
+
 P-001 (Windows primeiro) e P-002 (Tauri/Rust/React) estão sendo exercitados neste protótipo autorizado. A escolha definitiva de arquitetura continua sujeita à validação; ver ADR 0001, **proposto**.
 
-O uso de SQLite foi autorizado para o MVP-002 (parte de P-003). O desenho específico do schema, driver e migrações está documentado no ADR 0002, **proposto**; FTS5 foi validado em testes, sem busca do produto. As demais propostas de P-003 e P-004 a P-010 mantêm seu estado original. Não há aprovação de provedor/modelo de IA, envio de dados, integração de chave, indexação ou bibliotecas 3D neste incremento.
+O uso de SQLite foi autorizado para o MVP-002 (parte de P-003). O desenho específico do schema, driver e migrações está documentado nos ADRs 0002/0004, **propostos**; FTS5 foi validado em testes, sem busca do produto. As demais propostas de P-003 e P-004 a P-010 mantêm seu estado original. Não há aprovação de provedor/modelo de IA, envio de dados, integração de chave, indexação de fontes pessoais ou bibliotecas 3D neste incremento.
 
 ## Pendências
 
 - A-001 a A-012 continuam abertas conforme a especificação consolidada; nome, identidade e distribuição não foram decididos.
 - O SQL citado pela seção 04 não existe no pacote recebido; o MVP-002 criou sua própria migração 001 mínima, sujeita à evolução documentada, sem alterar o original consolidado.
-- RF-001 e os testes T-001 a T-024 do produto permanecem pendentes; T-008 tem cobertura parcial do banco. T-025 a T-031 são testes adicionais de fundação e não indicam conclusão do MVP completo.
+- RF-001 está implementado para pastas locais: seleção nativa, confirmação, persistência e revogação. T-001 cobre a autorização persistida; T-014 cobre revogação preservando o arquivo e o cadastro (ideias/vínculos ainda não existem como funcionalidade). T-008 continua parcial. T-032 a T-035 complementam a cobertura de fontes; os demais testes do produto permanecem no escopo dos respectivos tickets.
+- No MVP-003, caminhos de rede e raízes reparse/symlink são recusados; a remoção permanente do cadastro/índice e o reconciliador de renomeações não foram implementados. O desenho de tokens/caminhos está no ADR 0003, **proposto**.
+- RF-002 está implementado somente para a fixture local fixa do MVP-004, preparada e autorizada explicitamente. O backend impede indexar outras fontes. Datas, hierarquia, tamanhos/contagens, erros recuperáveis e relatório persistido compõem este incremento; não significa conclusão de RF-002 para pastas pessoais.
+- ADR 0004 mantém **propostos** a política de exclusões/limites, o caminho de fixture vinculado ao checkout e o snapshot identificado por UUID. Não há garantia contra troca maliciosa de ancestrais entre chamadas do filesystem; ampliar o escopo exige revisar essa fronteira.
 - Persistência de ideias com conteúdo, FTS do produto, backups/restauração, identidade de filesystem e validações de hierarquia entre fontes/ciclos longos continuam pendentes antes dos tickets que expuserem essas operações.
 - O repositório na pasta do usuário é distinto do novo repositório local MNEXO; nenhuma configuração desse repositório externo foi modificada.

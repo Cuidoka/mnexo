@@ -8,6 +8,7 @@
     "node": "^22.13.0 || >=24.0.0"
   },
   "scripts": {
+    "fixture:prepare": "node scripts/prepare-metadata-fixture.mjs",
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",

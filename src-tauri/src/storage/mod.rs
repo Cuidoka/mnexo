@@ -1,4 +1,6 @@
+mod indexing;
 mod migrations;
+mod sources;
 
 use std::{
     fmt, fs,
@@ -48,14 +50,21 @@ impl Database {
 
         migrations::apply(&mut connection, migrations::MIGRATIONS)?;
 
-        // Não anunciar pronto se o arquivo informar versão 1 mas não contiver o catálogo.
+        // Validar também as colunas/tabelas acrescentadas pela migração 002.
         connection.prepare(
             "SELECT id, root_path, display_name, enabled, created_at FROM sources LIMIT 0",
         )?;
         connection.prepare(
             "SELECT id, kind, origin, title, parent_id, source_id, fs_path, fs_path_key,
-                    size_bytes, created_at FROM nodes LIMIT 0",
+                    size_bytes, created_at, fs_created_at_ms, fs_modified_at_ms,
+                    size_partial, scan_id FROM nodes LIMIT 0",
         )?;
+        connection.prepare(
+            "SELECT source_id, scan_id, completed_at, files_count, folders_count,
+            total_bytes, skipped_count, error_count, partial FROM scan_reports LIMIT 0",
+        )?;
+        connection
+            .prepare("SELECT source_id, ordinal, relative_path, code FROM scan_issues LIMIT 0")?;
 
         Ok(Self { connection })
     }
@@ -77,6 +86,7 @@ pub(crate) enum StorageError {
     InvalidMigrations,
     UnsupportedVersion(u32),
     UnrecognizedDatabase,
+    AuthorizationRevoked,
 }
 
 impl fmt::Display for StorageError {
@@ -91,6 +101,7 @@ impl fmt::Display for StorageError {
             }
             Self::InvalidMigrations => "Sequência de migrações inválida",
             Self::UnrecognizedDatabase => "Banco não reconhecido",
+            Self::AuthorizationRevoked => "Autorização revogada",
         };
         formatter.write_str(message)
     }

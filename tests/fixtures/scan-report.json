@@ -1,0 +1,13 @@
+{
+  "sourceId": "00000000-0000-4000-8000-000000000001",
+  "scanId": "00000000-0000-4000-8000-000000000003",
+  "completedAt": "2026-11-09T15:00:00.000Z",
+  "filesCount": 2,
+  "foldersCount": 3,
+  "totalBytes": "9007199254740993",
+  "skippedCount": 1,
+  "errorCount": 1,
+  "partial": true,
+  "issues": [{ "relativePath": "atalho", "code": "LINK_SKIPPED" }],
+  "issuesTruncated": false
+}

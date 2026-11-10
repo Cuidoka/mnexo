@@ -9,10 +9,16 @@ pub(super) struct Migration {
     pub sql: &'static str,
 }
 
-pub(super) const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    sql: include_str!("../../migrations/001_initial.sql"),
-}];
+pub(super) const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        sql: include_str!("../../migrations/001_initial.sql"),
+    },
+    Migration {
+        version: 2,
+        sql: include_str!("../../migrations/002_metadata_index.sql"),
+    },
+];
 
 /// Versão e DDL são confirmados na mesma transação; falha implica rollback.
 pub(super) fn apply(
