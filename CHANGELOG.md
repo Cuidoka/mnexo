@@ -2,6 +2,15 @@
 
 ## Em desenvolvimento — 2026-11-11
 
+### MVP-008 / RF-004 — órbita, zoom, pan, seleção e navegação 3D
+
+- Ativados OrbitControls e Raycaster da versão Three.js já fixada, sem dependências novas. Órbita, zoom limitado, pan, comandos de câmera por botões/teclado e reenquadramento; renderização por demanda e descarte de controles/listeners.
+- Clique seleciona UUID real e destaca o objeto; o painel reutiliza metadados reais via get_node_detail. Arrasto/múltiplos ponteiros não selecionam acidentalmente. Duplo clique/Enter abre somente pastas, sem abrir conteúdo de arquivos.
+- Ampliado get_scene_projection com folderId opcional e breadcrumbs validados. Entrar/voltar por pasta pai ou breadcrumb conserva fonte/snapshot; limites são relativos à pasta atual. Arquivo, outra fonte/scan e ancestralidade inválida são recusados.
+- Acrescentadas seleção/entrada pela relação HTML, tratamento de respostas atrasadas e erros sem manter detalhes/cena antigos. Revogação/mudança de snapshot preservam o fluxo anterior.
+- Mantidos schema 2, 12 comandos específicos, CSP, scanner restrito à fixture e IA desativada. Não há gravação de câmera/seleção, isolamento/reintegração ou comandos do SO.
+- Testes T-056 a T-061/T-011 cobrem navegação real em SQLite, contrato compartilhado, seleção/contexto, ciclo de vida e interação real no Chromium headless. ADR 0008 permanece **proposto**; resultados em docs/08_TESTES_E_CRITERIOS.md.
+
 ### MVP-007 / RF-003 — cena 3D inicial com índice real
 
 - Adicionado `get_scene_projection` por sourceId/scanId, com autorização e leitura consistente do SQLite. Projeção em largura, pais antes de filhos, até 100 nós incluindo a raiz e 3 níveis abaixo dela, com truncamento explícito.

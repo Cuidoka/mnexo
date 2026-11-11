@@ -364,3 +364,52 @@ Consultas independentes somente leitura antes/depois confirmaram o mesmo checksu
 5. Em ambiente sem WebGL 2/perda de contexto, conferir mensagem e usar Ver índice 2D.
 
 Não testados: cena/IPC no WebView2 nativo completo, GPU física/outros drivers, outras máquinas, leitor de tela real e benchmarks de grandes índices. Órbita/zoom/seleção/navegação 3D, isolamento/reintegração e persistência da cena permanecem nos tickets seguintes. A pasta docs/design e os três documentos originais ficam fora do incremento.
+
+## MVP-008 / RF-004 — câmera, seleção e navegação 3D (11/11/2026)
+
+Base: main `040d0e5`, MVP-007 integrado pela PR #4. Este incremento inclui pan, previsto no RF-004 confirmado, além de órbita, zoom, seleção e navegação. Isolamento/reintegração permanece MVP-009. Schema 2, CSP, 12 comandos, scanner da fixture e IA desativada permanecem iguais. ADR 0008 tem estado **proposto**.
+
+### Rastreabilidade
+
+| ID                   | Verificação executada                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RF-004 / T-056       | Navegação por ID da raiz para pasta e retorno ao pai, em índice SQLite sintético real. Breadcrumbs, UUIDs e metadados preservados; limite de três níveis relativo à pasta atual permite consultar descendentes fora da projeção anterior. Banco/arquivo sintético ficam byte a byte iguais após as consultas.                                                                             |
+| T-056                | Arquivo como pasta, UUID inválido, fonte desconhecida, nó retido de outro scan, ancestralidade corrompida e autorização revogada são recusados. As validações anteriores de snapshot/fonte/pais e filtros continuam cobertas pela suíte.                                                                                                                                                  |
+| T-057                | Fixtures de projeção raiz e pasta compartilhadas Rust/TS. Campo folderId no IPC; breadcrumbs/pasta/parent/contexto coerentes. Respostas antigas sem breadcrumbs, pais/IDs/depth inválidos e pasta diferente da solicitada são recusados.                                                                                                                                                  |
+| T-058/T-059          | UI com sessão simulada: seleção não remonta renderer; botões chamam órbita/zoom/reset da sessão; callbacks de seleção/entrada mantêm UUID. StrictMode, falha/perda de contexto e descarte continuam cobertos.                                                                                                                                                                             |
+| RF-004 / T-011/T-060 | UI com IPC/Canvas simulados: seleção de arquivo apresenta detalhe do ID correto; entrada em pasta, retorno ao pai/breadcrumb, pasta vazia, comandos por teclado na relação textual e limites/parcialidade. Erro remove cena antiga e permite voltar à raiz. Detalhe que chega após navegar é ignorado. Revogação e mudança de snapshot seguem cobertas pela integração com Fontes.        |
+| T-055/T-061          | WebGL 2 real com 12/100 nós: pixels com geometria visível, dispose duplo, liberação de contexto e perda de contexto. Chrome headless com entrada CDP real confirma arrasto/orbita, pan com botão direito, zoom pela roda, raycast selecionando UUID de arquivo, duplo clique abrindo UUID da pasta, teclado/Enter/Home e reset restaurando a imagem inicial. Arrasto não dispara seleção. |
+
+### Resultados e comandos reais
+
+| Comando                                                                                             | Resultado                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test --maxWorkers=2`                                                                          | 14 arquivos, **141 testes passaram**, zero falhas. A limitação de workers vale só para essa execução; não alterou a configuração do produto/suíte.                                                                   |
+| `cargo test --manifest-path src-tauri/Cargo.toml --locked --offline`                                | **57 testes passaram**, zero falhas, incluindo junções Windows sintéticas.                                                                                                                                           |
+| `pnpm typecheck` e `pnpm lint`                                                                      | Passaram.                                                                                                                                                                                                            |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --all-targets -- -D warnings` | Passou.                                                                                                                                                                                                              |
+| `pnpm desktop:build`                                                                                | Passou: 38 módulos frontend e executável Windows release. Chunk 3D sob demanda de 567,25 kB minificados / 140,71 kB gzip; Vite manteve aviso de chunk acima de 500 kB.                                               |
+| `pnpm test:scene:webgl`                                                                             | Passou: cenas 12/100 nós com 83/95 cores amostradas e todas as verificações de interação CDP verdadeiras. Captura inspecionada: pasta selecionada em amarelo claro, filhos visíveis e geometria aninhada preservada. |
+
+Rust foi ativado por Use-LocalRust.ps1, com CARGO_INCREMENTAL=0 apenas no processo. A primeira atualização TypeScript exigiu acrescentar os novos métodos ao mock de SceneSession; nenhum método fictício foi introduzido no produto. A primeira execução dos cenários novos teve três falhas frontend: espera insuficiente pelo lazy import, botão ambíguo entre breadcrumb e painel, e timeout de integração sob execução concorrente. Os seletores/espera foram corrigidos e a suíte completa passou com dois workers. O teste adverso Rust tentou criar autorreferência, já impedida por CHECK do schema; o cenário foi corrigido para uma relação cíclica entre dois nós, e a suíte completa passou. Essas correções não relaxaram as validações do produto.
+
+### Evidência gráfica e fronteira nativa
+
+O script cria perfil novo em `.tools/scene-webgl-*`, servidor Vite e CDP somente em loopback e usa ANGLE/SwiftShader do Chrome instalado. Input.dispatchMouseEvent/dispatchKeyEvent exercitam controles do browser com pointer capture real, sem simular OrbitControls/Raycaster. A sonda que localiza arquivo/pasta usa o picking do renderer e existe apenas no harness sintético. Não acessa perfil pessoal, IPC/banco do produto ou documentos externos. Evidência inspecionada: `.tools/scene-webgl-Rx5ynK/scene.png` e `dom.html`.
+
+O renderer real foi validado separadamente da UI com mocks e das consultas SQLite reais. A integração completa pelo IPC no WebView2 nativo, GPU física/outros drivers, toque físico e leitor de tela real estão **NÃO TESTADOS** nesta etapa. A janela pessoal não foi automatizada nesta verificação. Não se declara que a captura do harness seja screenshot do aplicativo nativo.
+
+### Repetir manualmente e limites
+
+1. No desktop, abrir Ver cena 3D em uma fixture autorizada/indexada. Confirmar snapshot e relação textual antes de interagir.
+2. Arrastar para orbitar, botão direito para pan, roda/botões para zoom; reenquadrar deve restaurar o alvo. Arrasto não deve trocar seleção.
+3. Selecionar arquivo/bloco ou botão da relação textual: destaque, nome, bytes/datas/caminho/pai devem corresponder ao mesmo UUID do índice.
+4. Duplo clique numa pasta, Enter com ela selecionada ou Entrar na relação textual deve abrir nova projeção; voltar por pai/breadcrumb conserva fonte/snapshot. Testar pasta vazia e pasta no limite da projeção.
+5. Com foco no canvas, testar setas, Shift+setas, +/−, Home e Escape. Trocar de pasta reenquadra a nova vista; não há histórico persistido de câmera/seleção.
+6. Fechar/reabrir a cena, atualizar após reindexar manualmente e revogar somente a fixture. A consulta visual não inicia scan nem abre conteúdo.
+
+Revisão final: `pnpm format:check`, `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` e `git diff --check` passaram. A verificação específica dos dois arquivos de teste da cena passou novamente: 12 casos, incluindo ajustes de mock/consulta sem mudar o produto. A revisão da capability/manifesto confirmou os mesmos 12 comandos main/local, sem diff em dependências, CSP ou permissões.
+
+Consulta independente somente leitura do banco próprio confirmou schema 2, três fontes, seis nós da fixture, um relatório (3 arquivos/3 pastas/41 bytes/zero ocorrências), integridade ok e zero violações de FK/nós de outras fontes. O checksum coincide com o registrado no MVP-007. O incremento não iniciou scan ou alterou os arquivos/banco de produção; testes funcionais de consulta usaram bancos sintéticos.
+
+Sem isolamento/reintegração, escrita em arquivos, persistência visual, paginação 3D ou nova dependência/permissão. docs/design e os três documentos originais continuam fora do incremento.

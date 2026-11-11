@@ -64,6 +64,110 @@ fn reindex(f: &mut Fixture) {
 }
 
 #[test]
+fn t056_scene_navigates_folders_and_parent_with_real_ids_and_no_writes() {
+    let mut f = prepare();
+    fs::create_dir_all(f.root.join("Coleção ç/Vazia/Nível 3/Nível 4")).unwrap();
+    reindex(&mut f);
+    let before = fs::read(&f.database).unwrap();
+    let root = f
+        .storage
+        .scene_projection(&f.source, &f.scan, None)
+        .unwrap();
+    let collection = root
+        .nodes
+        .iter()
+        .find(|node| node.title == "Coleção ç")
+        .unwrap();
+    let inside = f
+        .storage
+        .scene_projection(&f.source, &f.scan, Some(&collection.id))
+        .unwrap();
+    assert_eq!(inside.root.node.id, collection.id);
+    assert_eq!(inside.root.parent.as_ref().unwrap().id, root.root.node.id);
+    assert_eq!(inside.breadcrumbs.len(), 2);
+    assert!(inside.nodes.iter().any(|node| node.title == "Nível 4"));
+    assert!(!inside.truncated);
+    let parent = f
+        .storage
+        .scene_projection(&f.source, &f.scan, Some(&inside.root.parent.unwrap().id))
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(parent).unwrap(),
+        serde_json::to_value(root).unwrap()
+    );
+    assert_eq!(fs::read(&f.database).unwrap(), before);
+    assert_eq!(fs::read(f.root.join("raiz.txt")).unwrap(), b"1234567");
+}
+
+#[test]
+fn t056_scene_folder_request_rejects_file_foreign_snapshot_and_corrupt_ancestry() {
+    let f = prepare();
+    let root = f
+        .storage
+        .scene_projection(&f.source, &f.scan, None)
+        .unwrap();
+    let file = root.nodes.iter().find(|node| node.kind == "file").unwrap();
+    let folder = root
+        .nodes
+        .iter()
+        .find(|node| node.title == "Coleção ç")
+        .unwrap();
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &f.scan, Some(&file.id))
+            .unwrap_err()
+            .code,
+        "NOT_A_FOLDER"
+    );
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &f.scan, Some("../../"))
+            .unwrap_err()
+            .code,
+        "INVALID_CATALOG_REQUEST"
+    );
+    let other = prepare();
+    assert_eq!(
+        f.storage
+            .scene_projection(&other.source, &f.scan, Some(&folder.id))
+            .unwrap_err()
+            .code,
+        "SOURCE_NOT_FOUND"
+    );
+    let connection = Connection::open(&f.database).unwrap();
+    let foreign = Uuid::new_v4().to_string();
+    connection.execute("INSERT INTO nodes(id,kind,origin,title,source_id,fs_path,fs_path_key,scan_id) VALUES(?1,'folder','filesystem','retido',?2,?3,'retido',?4)", params![foreign,f.source,f.root.join("retido").to_str().unwrap(),Uuid::new_v4().to_string()]).unwrap();
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &f.scan, Some(&foreign))
+            .unwrap_err()
+            .code,
+        "NODE_NOT_FOUND"
+    );
+    connection
+        .execute(
+            "UPDATE nodes SET parent_id=?1 WHERE id=?2",
+            params![folder.id, root.root.node.id],
+        )
+        .unwrap();
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &f.scan, Some(&folder.id))
+            .unwrap_err()
+            .code,
+        "INVALID_CATALOG"
+    );
+    f.storage.revoke_source(&f.source).unwrap();
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &f.scan, Some(&folder.id))
+            .unwrap_err()
+            .code,
+        "SOURCE_NOT_AUTHORIZED"
+    );
+}
+
+#[test]
 fn t003_t050_scene_uses_real_saved_nodes_without_changing_database_or_source() {
     let mut f = prepare();
     for index in 0..9 {
@@ -71,7 +175,10 @@ fn t003_t050_scene_uses_real_saved_nodes_without_changing_database_or_source() {
     }
     reindex(&mut f);
     let before = fs::read(&f.database).unwrap();
-    let first = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    let first = f
+        .storage
+        .scene_projection(&f.source, &f.scan, None)
+        .unwrap();
     assert_eq!(first.nodes.len() + 1, 15);
     assert!(!first.truncated);
     assert_eq!((first.node_limit, first.depth_limit), (100, 3));
@@ -86,7 +193,7 @@ fn t003_t050_scene_uses_real_saved_nodes_without_changing_database_or_source() {
         );
     }
     let second = Storage::new(Some(f.database.clone()))
-        .scene_projection(&f.source, &f.scan)
+        .scene_projection(&f.source, &f.scan, None)
         .unwrap();
     assert_eq!(
         serde_json::to_value(first).unwrap(),
@@ -103,18 +210,27 @@ fn t050_scene_limits_are_honest_at_100_nodes_and_at_depth_three() {
         fs::write(f.root.join(format!("cena-{index:03}.txt")), b"").unwrap();
     }
     reindex(&mut f);
-    let full = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    let full = f
+        .storage
+        .scene_projection(&f.source, &f.scan, None)
+        .unwrap();
     assert_eq!(full.nodes.len() + 1, 100);
     assert!(!full.truncated);
     fs::write(f.root.join("excedente.txt"), b"").unwrap();
     reindex(&mut f);
-    let limited = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    let limited = f
+        .storage
+        .scene_projection(&f.source, &f.scan, None)
+        .unwrap();
     assert_eq!(limited.nodes.len() + 1, 100);
     assert!(limited.truncated);
     let mut f = prepare();
     fs::create_dir_all(f.root.join("Coleção ç/Vazia/Nível 3/Nível 4")).unwrap();
     reindex(&mut f);
-    let limited = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    let limited = f
+        .storage
+        .scene_projection(&f.source, &f.scan, None)
+        .unwrap();
     assert!(limited.truncated);
     assert!(limited.nodes.iter().any(|node| node.title == "Nível 3"));
     assert!(!limited.nodes.iter().any(|node| node.title == "Nível 4"));
@@ -127,14 +243,14 @@ fn t050_scene_rejects_stale_snapshot_revocation_invalid_ids_and_corrupt_path() {
     reindex(&mut f);
     assert_eq!(
         f.storage
-            .scene_projection(&f.source, &previous)
+            .scene_projection(&f.source, &previous, None)
             .unwrap_err()
             .code,
         "INDEX_CHANGED"
     );
     assert_eq!(
         f.storage
-            .scene_projection("' OR 1=1", &f.scan)
+            .scene_projection("' OR 1=1", &f.scan, None)
             .unwrap_err()
             .code,
         "INVALID_CATALOG_REQUEST"
@@ -148,7 +264,7 @@ fn t050_scene_rejects_stale_snapshot_revocation_invalid_ids_and_corrupt_path() {
         .unwrap();
     assert_eq!(
         f.storage
-            .scene_projection(&f.source, &f.scan)
+            .scene_projection(&f.source, &f.scan, None)
             .unwrap_err()
             .code,
         "INVALID_CATALOG"
@@ -156,7 +272,7 @@ fn t050_scene_rejects_stale_snapshot_revocation_invalid_ids_and_corrupt_path() {
     f.storage.revoke_source(&f.source).unwrap();
     assert_eq!(
         f.storage
-            .scene_projection(&f.source, &f.scan)
+            .scene_projection(&f.source, &f.scan, None)
             .unwrap_err()
             .code,
         "SOURCE_NOT_AUTHORIZED"
@@ -204,9 +320,22 @@ fn t051_scene_serialization_matches_shared_typescript_contract() {
     }
     let actual = f
         .storage
-        .scene_projection(&text(&root["sourceId"]), &text(&root["scanId"]))
+        .scene_projection(&text(&root["sourceId"]), &text(&root["scanId"]), None)
         .unwrap();
     assert_eq!(serde_json::to_value(actual).unwrap(), expected);
+    let folder_expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/scene-folder-projection.json"
+    ))
+    .unwrap();
+    let actual = f
+        .storage
+        .scene_projection(
+            &text(&root["sourceId"]),
+            &text(&root["scanId"]),
+            Some(folder_expected["root"]["node"]["id"].as_str().unwrap()),
+        )
+        .unwrap();
+    assert_eq!(serde_json::to_value(actual).unwrap(), folder_expected);
 }
 
 #[test]

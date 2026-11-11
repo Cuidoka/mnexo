@@ -4,11 +4,11 @@ Aplicativo desktop em desenvolvimento para conectar arquivos reais e conheciment
 
 ## Estado real
 
-Incremento atual: **MVP-007 / RF-003 — cena 3D com nós reais do índice**. A tela Fontes permite abrir uma cena de pastas contendo seus filhos, com câmera fixa e até 100 nós do mesmo snapshot, além da navegação 2D e metadados anteriores. A indexação da fixture continua explícita, em segundo plano, com progresso/cancelamento.
+Incremento atual: **MVP-008 / RF-004 — órbita, zoom, pan, seleção e navegação 3D**. A cena permite selecionar nós reais, conferir seus metadados, entrar em pastas e voltar por pai/breadcrumb, mantendo fonte e snapshot. A indexação da fixture continua explícita, em segundo plano, com progresso/cancelamento.
 
 O banco possui `sources`/`nodes` e as tabelas de relatório. O comando retorna `databaseStatus: "ready"` e `schemaVersion: 2` quando o banco está disponível; em falha retorna `"unavailable"` e `null`. A interface distingue falha do banco de falha IPC e permite tentar novamente. IA continua `"disabled"`.
 
-Indexação de pastas pessoais, pausa/retomada incremental, edição de ideias, busca do produto, navegação interativa 3D e integração de IA **ainda não estão implementados**. Autorizar não inicia varredura. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
+Indexação de pastas pessoais, pausa/retomada incremental, edição de ideias, busca do produto, isolamento/reintegração visual e integração de IA **ainda não estão implementados**. Autorizar não inicia varredura. FTS5 foi exercitado com texto sintético em bancos de teste; o índice de ideias do produto fica para seu ticket próprio.
 
 ## Adicionar e revogar uma fonte
 
@@ -52,17 +52,19 @@ São metadados armazenados, não uma confirmação do estado atual do disco. A n
 
 Fonte, snapshot, pasta/item e cursor são validados no Rust em uma transação de leitura consistente. Consultas não retornam nós retidos de snapshots anteriores nem pais de outra fonte. A autorização de navegação cobre o catálogo já confirmado de uma fonte habilitada; a criação de índices continua restrita à fixture neste protótipo. Não há abertura de conteúdo ou comando do SO na navegação. O schema permanece **2**. Decisões e limites: ADR 0006, **proposto**.
 
-## Abrir a cena 3D (MVP-007)
+## Navegar na cena 3D (MVP-007/008)
 
 1. Em uma fonte autorizada com índice navegável, clique **Ver cena 3D**. A consulta usa somente o SQLite e não inicia scan.
-2. Os contornos verdes representam pastas e contêm os filhos; os blocos azuis representam arquivos. Âmbar sinaliza metadados parciais. A câmera é fixa e enquadra a raiz, inclusive ao redimensionar a janela.
-3. Confira contagem real e data do índice. A projeção usa até **100 nós incluindo a raiz** e **3 níveis abaixo dela**, em largura, com pais antes de filhos. Se houver mais itens, a tela informa o limite. Índices menores são exibidos com sua contagem real, sem completar com objetos fictícios.
+2. Os contornos verdes representam pastas e contêm os filhos; os blocos azuis representam arquivos. Âmbar sinaliza metadados parciais. Arraste com botão esquerdo para orbitar, use a roda para zoom e botão direito para pan. Clique no bloco/base/contorno para selecionar; o destaque amarelo claro e o painel identificam o nó pelos IDs do índice.
+3. Confira contagem real e data do índice. A projeção usa até **100 nós incluindo a pasta atual** e **3 níveis abaixo dela**, em largura, com pais antes de filhos. Se houver mais itens, a tela informa o limite. Índices menores são exibidos com sua contagem real, sem completar com objetos fictícios.
 4. Expanda **Relação dos nós exibidos** para conferir nome, UUID, tipo, pai e bytes exatos. O volume dos arquivos usa escala comprimida; pastas acomodam seus filhos, sem prometer escala física proporcional ao espaço em disco.
-5. **Ver índice 2D** abre a navegação existente, também disponível se WebGL 2 falhar. Fechar a cena libera canvas, observador de tamanho, geometrias, materiais e contexto gráfico. Atualizar catálogo relê fonte/snapshot; revogação fecha a cena.
+5. Dê duplo clique numa pasta, use **Entrar na pasta selecionada** ou **Entrar** na relação textual. Volte por **Voltar à pasta pai** ou pelo breadcrumb. Cada pasta recebe uma nova projeção limitada do mesmo snapshot; o caminho até a raiz permanece explícito.
+6. Selecione também pela relação textual, usando Tab/Enter. Os botões de câmera giram, aproximam/afastam e reenquadram. Com foco na área 3D: setas giram; Shift + setas deslocam; +/− ajustam zoom; Home reenquadra; Enter entra na pasta selecionada; Escape limpa seleção. Arquivo selecionado exibe metadados, sem abrir conteúdo.
+7. **Ver índice 2D** abre a navegação existente, também disponível se WebGL 2 falhar. Fechar a cena libera canvas, observador de tamanho, geometrias, materiais e contexto gráfico. Atualizar catálogo relê fonte/snapshot; revogação fecha a cena.
 
 Para preparar um exemplo com pelo menos dez nós, execute `pnpm fixture:prepare:3d`. Ele acrescenta nove arquivos sintéticos à fixture fixa, preservando tudo que já existir. Depois indexe a fixture por clique explícito no aplicativo. Com a fixture original sem alterações, serão **12 arquivos e 3 pastas (15 nós)**. Preparar os arquivos não atualiza o índice automaticamente.
 
-Three.js **0.187.0**, licença MIT, é empacotado localmente; `@types/three` da mesma versão é dependência de desenvolvimento. Não há custo por uso, assets remotos, CDN, rede, modelo ou endpoint de produto. O renderer carrega sob demanda e precisa de WebGL 2 no WebView2. Decisões técnicas, orçamento e limites: ADR 0007, **proposto**. Órbita, zoom e seleção/navegação de objetos ficam no MVP-008; isolar/reintegrar fica no MVP-009.
+Three.js **0.187.0**, licença MIT, é empacotado localmente; `@types/three` da mesma versão é dependência de desenvolvimento. Não há custo por uso, assets remotos, CDN, rede, modelo ou endpoint de produto. O renderer carrega sob demanda e precisa de WebGL 2 no WebView2. Decisões técnicas, orçamento e limites: ADR 0007, **proposto**. OrbitControls e Raycaster da mesma versão atendem o MVP-008, sem dependência nova; detalhes no ADR 0008, **proposto**. Isolar/reintegrar fica no MVP-009.
 
 ## Pré-requisitos e ambiente
 
@@ -130,7 +132,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked
 
 O contrato JSON compartilhado é verificado no Rust e no TypeScript. Os testes do frontend usam mocks explicitamente; não substituem abrir a janela e verificar o IPC real. Cenários e resultados: [docs/08_TESTES_E_CRITERIOS.md](docs/08_TESTES_E_CRITERIOS.md).
 
-`test:scene:webgl` usa Chrome/Edge instalado, em modo headless, perfil novo dentro de `.tools`, servidor somente no loopback e SwiftShader para exercitar WebGL 2 real com 12/100 nós sintéticos e descarte/perda de contexto. Aceita `MNEXO_TEST_BROWSER` para indicar outro executável Chromium. Não usa o perfil pessoal nem o banco/IPC do aplicativo. A imagem e o DOM de evidência ficam em `.tools/scene-webgl-*`; isso não comprova compatibilidade com todos os drivers ou com WebView2 nativo.
+`test:scene:webgl` usa Chrome/Edge instalado, em modo headless, perfil novo dentro de `.tools`, servidor e depuração CDP somente no loopback, e SwiftShader para exercitar WebGL 2 real com 12/100 nós sintéticos, descarte/perda de contexto e entrada real de mouse/teclado: órbita/pan/zoom, raycast, arrasto sem seleção, duplo clique, Enter e reenquadramento. Aceita `MNEXO_TEST_BROWSER` para indicar outro executável Chromium. Não usa o perfil pessoal nem o banco/IPC do aplicativo. A imagem e o DOM de evidência ficam em `.tools/scene-webgl-*`; isso não comprova compatibilidade com todos os drivers ou com WebView2 nativo.
 
 Os testes SQLite usam diretórios temporários dentro de `.tools/test-data`, sem arquivos pessoais, e verificam reabertura, Unicode, integridade, FKs, precisão de inteiros, concorrência, rollback, metadados e FTS5 sintético. **T-008** cobre o índice da fixture; a parte de ideias continua pendente. Backup automático e restauração do produto não fazem parte deste incremento.
 
@@ -149,6 +151,6 @@ O ícone provisório foi desenhado como SVG no projeto; o ICO é derivado pelo C
 
 `src/app` contém a tela, `src/shared/api` encapsula o IPC, `src-tauri/src/commands` contém o contrato Rust, `src-tauri/src/storage` encapsula SQLite e migrações, `src-tauri/migrations` guarda o SQL, `tests/fixtures` guarda somente contratos sintéticos e `docs` registra arquitetura, testes e decisões.
 
-O usuário solicitou, a partir do MVP-004, commit detalhado e push ao GitHub a cada passo concluído; a partir do MVP-005, também criação e merge da PR após validação. Isso não autoriza iniciar incrementos futuros nem ignorar verificações exigidas no GitHub. A PR #1 do MVP-004 foi integrada manualmente pelo usuário; MVP-005/006 entraram pelas PRs #2/#3. O MVP-007 parte da main `836463c`. Os três documentos recebidos e `docs/design` são preservados. O schema continua 2, permitindo reverter o código para MVP-006 sem downgrade. Backup consistente e restauração continuam pendentes.
+O usuário solicitou, a partir do MVP-004, commit detalhado e push ao GitHub a cada passo concluído; a partir do MVP-005, também criação e merge da PR após validação. Isso não autoriza iniciar incrementos futuros nem ignorar verificações exigidas no GitHub. A PR #1 do MVP-004 foi integrada manualmente pelo usuário; MVP-005/006/007 entraram pelas PRs #2/#3/#4. O MVP-008 parte da main `040d0e5`. Os três documentos recebidos e `docs/design` são preservados. O schema continua 2, permitindo reverter o código para MVP-007 sem downgrade. Backup consistente e restauração continuam pendentes.
 
-Próximo incremento mínimo: **MVP-008 / RF-004**, órbita, zoom, seleção e navegação entre filhos/pais na cena 3D.
+Próximo incremento mínimo: **MVP-009 / RF-005**, isolar visualmente e reintegrar um nó, comprovando ausência de alteração dos arquivos.

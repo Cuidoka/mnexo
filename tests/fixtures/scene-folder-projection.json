@@ -1,0 +1,120 @@
+{
+  "root": {
+    "sourceId": "00000000-0000-4000-8000-000000000001",
+    "scanId": "00000000-0000-4000-8000-000000000003",
+    "indexedAt": "2026-11-09T18:00:00.000Z",
+    "sourceName": "Documentos com espaço",
+    "sourceRootPath": "C:\\fixture\\Documentos com espaço",
+    "node": {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "parentId": "00000000-0000-4000-8000-000000000002",
+      "kind": "folder",
+      "title": "Coleção ç",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    "path": "C:\\fixture\\Documentos com espaço\\Coleção ç",
+    "createdAtMs": null,
+    "parent": {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "title": "Documentos com espaço"
+    }
+  },
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 07.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 08.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 09.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 10.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 11.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 12.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 13.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000014",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 14.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000015",
+      "parentId": "00000000-0000-4000-8000-000000000005",
+      "kind": "file",
+      "title": "Arquivo sintético 15.txt",
+      "sizeBytes": "0",
+      "sizePartial": false,
+      "modifiedAtMs": null
+    }
+  ],
+  "nodeLimit": 100,
+  "depthLimit": 3,
+  "truncated": false,
+  "breadcrumbs": [
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "title": "Documentos com espaço"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "title": "Coleção ç"
+    }
+  ]
+}

@@ -47,6 +47,7 @@ pub(crate) struct NodePage {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SceneProjection {
     pub root: NodeDetail,
+    pub breadcrumbs: Vec<Breadcrumb>,
     pub nodes: Vec<NodeSummary>,
     pub node_limit: usize,
     pub depth_limit: usize,

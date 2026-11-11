@@ -93,7 +93,11 @@ it('T-054 — abre 3D só por clique, passa IDs do snapshot, oferece 2D e fecha 
     }),
   );
   expect(await screen.findByText(/12 nós reais/)).toBeInTheDocument();
-  expect(getSceneProjection).toHaveBeenCalledWith(source.id, report.scanId);
+  expect(getSceneProjection).toHaveBeenCalledWith(
+    source.id,
+    report.scanId,
+    null,
+  );
   expect(startScan).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Ver índice 2D' }));
   expect(await screen.findByRole('table')).toBeInTheDocument();
@@ -138,7 +142,11 @@ it('T-054 — atualizar fontes após novo scan remonta a projeção com o novo s
   await screen.findByText(/12 nós reais/);
   await user.click(screen.getByRole('button', { name: 'Atualizar catálogo' }));
   await screen.findByText(/12 nós reais/);
-  expect(getSceneProjection).toHaveBeenLastCalledWith(source.id, nextScan);
+  expect(getSceneProjection).toHaveBeenLastCalledWith(
+    source.id,
+    nextScan,
+    null,
+  );
   expect(startScan).not.toHaveBeenCalled();
 });
 

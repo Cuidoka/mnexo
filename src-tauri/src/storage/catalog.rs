@@ -191,10 +191,12 @@ impl Storage {
         &self,
         source_id: &str,
         scan_id: &str,
+        folder_id: Option<&str>,
     ) -> Result<SceneProjection, SourceError> {
         const NODE_LIMIT: usize = 100;
         const DEPTH_LIMIT: usize = 3;
         let (source_id, scan_id) = (uuid(source_id)?, uuid(scan_id)?);
+        let folder_id = folder_id.map(uuid).transpose()?;
         let mut handle = self.database().map_err(SourceError::database)?;
         let transaction = handle.connection.transaction().map_err(database)?;
         let context = context(&transaction, &source_id, &scan_id)?;
@@ -202,11 +204,18 @@ impl Storage {
             "SELECT {COLUMNS} FROM nodes WHERE source_id=?1 AND scan_id=?2
             AND fs_path_key='.' AND parent_id IS NULL AND kind='folder' AND origin='filesystem'"
         );
-        let root = transaction
-            .query_row(&sql, params![source_id, scan_id], row)
-            .optional()
-            .map_err(database)?
-            .ok_or_else(|| SourceError::new("INDEX_EMPTY"))?;
+        let root = if let Some(id) = folder_id {
+            node(&transaction, &context, &id)?
+        } else {
+            transaction
+                .query_row(&sql, params![source_id, scan_id], row)
+                .optional()
+                .map_err(database)?
+                .ok_or_else(|| SourceError::new("INDEX_EMPTY"))?
+        };
+        if root.summary.kind != "folder" {
+            return Err(SourceError::new("NOT_A_FOLDER"));
+        }
         validate_path(&root, &context)?;
         let chain = breadcrumbs(&transaction, &context, &root)?;
         let mut queue = VecDeque::from([(root.summary.id.clone(), root.path.clone(), 0)]);
@@ -250,6 +259,7 @@ impl Storage {
         }
         Ok(SceneProjection {
             root: detail(&context, root, &chain),
+            breadcrumbs: chain,
             nodes,
             node_limit: NODE_LIMIT,
             depth_limit: DEPTH_LIMIT,
