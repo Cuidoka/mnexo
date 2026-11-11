@@ -1,4 +1,4 @@
-# Arquitetura — estado do MVP-007
+# Arquitetura — estado do MVP-008
 
 Fonte da proposta completa: seção 03 de `../ESPECIFICACAO_COMPLETA.md`. Este documento registra apenas o incremento implementado e não substitui a especificação.
 
@@ -130,6 +130,18 @@ A consulta percorre em largura, com ordenação pasta/título BINARY/UUID e pais
 `ScenePanel` consulta apenas após clique explícito e remonta por sourceId/scanId. O renderer é carregado sob demanda por React.lazy/Suspense. Three.js 0.187.0 é usado diretamente, sem React Three Fiber neste incremento. `scene-renderer.ts` cria grupos com userData.nodeId do backend, câmera perspectiva fixa enquadrada pela esfera da raiz, luzes locais e geometrias/materiais compartilhados. ResizeObserver redesenha e reenquadra; pixel ratio é limitado a 2. Não há animação contínua, controles orbitais, raycasting, mudança de hierarquia ou gravação da cena.
 
 Fechar/revogar desmonta a sessão e libera listener, observador, canvas, geometria, materiais, renderer e contexto. Falha de criação/render/perda de WebGL informa indisponibilidade sem expor erro bruto; o botão Ver índice 2D mantém a consulta acessível. CSP e schema 2 permanecem; nenhum asset remoto ou nova permissão genérica. A cena é representação dos metadados confirmados, não prova de presença atual no disco. ADR 0007, **proposto**, registra escolhas e rollback. Testes T-050 a T-055 distinguem SQLite real, UI com mocks e WebGL real em Chromium headless.
+
+## Interação e navegação 3D (MVP-008 / RF-004)
+
+O contrato atual é `get_scene_projection(sourceId, scanId, folderId?)`. Sem folderId retorna a raiz da fonte; com UUID retorna uma pasta do mesmo snapshot. Root passa a representar a pasta atual, pode ter parent, e SceneProjection acrescenta breadcrumbs da raiz da fonte até ela. O backend rejeita arquivo como pasta, IDs de outra fonte/scan e ancestralidade inválida; mantém transação única, autorização e filtros do catálogo. Os limites de 100 nós/3 níveis passam a ser relativos à pasta atual. Entrar em uma pasta permite consultar descendentes omitidos na projeção anterior, sem scan. Schema e os 12 comandos/capabilities permanecem iguais.
+
+O parser TS valida também breadcrumbs únicos, último item/parent da pasta atual, ausência de ancestrais entre descendentes e contexto de pasta solicitado. ScenePanel invalida respostas de página/detalhe ao navegar/fechar, desmonta a cena antiga durante a consulta e reinicia seleção na pasta atual. Seleção por UUID consulta get_node_detail e reutiliza NodeDetails. Arquivos não são abertos. Pai e breadcrumb enviam IDs validados, com fonte/scan preservados. A relação HTML oferece seleção/entrada por teclado sem depender de WebGL.
+
+OrbitControls da versão instalada fornece órbita/zoom/pan por mouse/touch. Sem damping/autoRotate; change redesenha por demanda. Zoom tem distâncias mínimas/máximas derivadas do volume atual. Resize preserva orientação, pan e razão de zoom; reenquadrar restaura alvo/câmera. Mudar de pasta recria/enquadra a cena; não se persiste histórico de câmera/seleção. Teclado no canvas: setas orbitam, Shift+setas pan, +/− zoom, Home reenquadra, Enter entra na pasta selecionada e Escape limpa seleção. Botões HTML oferecem comandos de câmera.
+
+Raycaster resolve os objetos visíveis de mesh/contorno/base para UUIDs do índice, com interseções ordenadas por distância. Clique destaca e seleciona; duplo clique/Enter abre somente pasta descendente. Movimento maior que 5 pixels CSS ou gesto com múltiplos ponteiros suprime seleção por clique. Pointercancel descarta gesto. O painel continua sinalizando metadados do snapshot, não presença atual no disco. A seleção muda apenas materiais; geometrias, paths e parentesco não são gravados.
+
+Dispose remove controles, listeners de canvas/documento, observador, geometrias/materiais e contexto, inclusive durante perda de WebGL. Sem dependência, migração, permissão genérica, serviço remoto ou API do SO nova. ADR 0008 permanece **proposto**. T-056/T-057 verificam navegação/contrato Rust/TS; T-058/T-059 controles/ciclo de vida; T-011/T-060 seleção/contexto/respostas atrasadas; T-061 usa renderer real e entrada CDP em Chrome headless isolado, sem acessar o perfil pessoal ou banco do produto.
 
 ## Rastreabilidade e limites do conjunto
 

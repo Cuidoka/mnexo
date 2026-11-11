@@ -10,12 +10,15 @@ use crate::{
 pub(crate) async fn get_scene_projection(
     source_id: String,
     scan_id: String,
+    folder_id: Option<String>,
     storage: State<'_, Storage>,
 ) -> Result<SceneProjection, SourceError> {
     let storage = storage.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || storage.scene_projection(&source_id, &scan_id))
-        .await
-        .map_err(|_| SourceError::new("CATALOG_UNAVAILABLE"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        storage.scene_projection(&source_id, &scan_id, folder_id.as_deref())
+    })
+    .await
+    .map_err(|_| SourceError::new("CATALOG_UNAVAILABLE"))?
 }
 
 #[tauri::command]

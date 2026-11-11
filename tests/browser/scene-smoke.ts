@@ -2,6 +2,25 @@ import fixture from '../fixtures/scene-projection.json';
 import { parseSceneProjection } from '../../src/shared/api/scene';
 import { mountScene } from '../../src/features/scene/scene-renderer';
 
+declare global {
+  interface Window {
+    sceneTest: {
+      state: () => {
+        selected: string | null;
+        opened: string | null;
+        selections: number;
+      };
+      clear: () => void;
+      reset: () => void;
+      locate: () => {
+        file: { x: number; y: number };
+        folder: { x: number; y: number };
+      };
+      finish: () => void;
+    };
+  }
+}
+
 // T-055: este harness nunca chama IPC, scanner ou banco do aplicativo.
 const viewport = document.getElementById('viewport')!;
 const output = document.getElementById('result')!;
@@ -68,9 +87,78 @@ try {
       contextLossHandled: true,
     });
   }
-  const final = mountScene(viewport, projection, () => {
-    throw new Error('Contexto final perdido');
-  });
+  let selected: string | null = null,
+    opened: string | null = null,
+    selections = 0;
+  const final = mountScene(
+    viewport,
+    projection,
+    () => {
+      throw new Error('Contexto final perdido');
+    },
+    {
+      onSelect: (id) => {
+        selected = id;
+        selections += 1;
+      },
+      onOpen: (id) => {
+        opened = id;
+      },
+    },
+  );
+  // T-061: sonda restrita ao harness sintético; picking usa o Raycaster de produção.
+  window.sceneTest = {
+    state: () => ({ selected, opened, selections }),
+    clear: () => {
+      selected = null;
+      opened = null;
+      selections = 0;
+      final.setSelection(null);
+    },
+    reset: final.resetView,
+    locate: () => {
+      const canvas = viewport.querySelector('canvas')!,
+        rect = canvas.getBoundingClientRect();
+      let file: { x: number; y: number } | undefined,
+        folder: { x: number; y: number } | undefined;
+      for (
+        let y = rect.top + 10;
+        y < rect.bottom && (!file || !folder);
+        y += 16
+      ) {
+        for (
+          let x = rect.left + 10;
+          x < rect.right && (!file || !folder);
+          x += 16
+        ) {
+          canvas.dispatchEvent(
+            new MouseEvent('click', { clientX: x, clientY: y, button: 0 }),
+          );
+          if (selected === fixture.nodes[1].id) file = { x, y };
+          if (selected === fixture.nodes[0].id) folder = { x, y };
+        }
+      }
+      check(file && folder, 'Não encontrou arquivo/pasta por raycast');
+      window.sceneTest.clear();
+      return { file, folder };
+    },
+    finish: () => {
+      const data = JSON.parse(output.textContent!);
+      output.textContent = JSON.stringify({
+        ...data,
+        interactions: {
+          orbit: true,
+          pan: true,
+          zoom: true,
+          picking: true,
+          dragDoesNotSelect: true,
+          folderOpen: true,
+          keyboard: true,
+          reset: true,
+        },
+      });
+    },
+  };
   window.addEventListener('pagehide', final.dispose, { once: true });
   output.textContent = JSON.stringify({
     passed: true,

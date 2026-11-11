@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fixture from '../../../tests/fixtures/scene-projection.json';
+import folder from '../../../tests/fixtures/scene-folder-projection.json';
 import { getSceneProjection, parseSceneProjection } from './scene';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: vi.fn() }));
@@ -15,6 +16,40 @@ describe('T-051 — contrato limitado da cena e contexto IPC', () => {
     expect(parseSceneProjection(fixture).root.node.sizeBytes).toBe(
       '9007199254740993',
     );
+  });
+  it('T-057 — valida pasta com ancestral e recusa breadcrumb/contexto trocado', async () => {
+    expect(parseSceneProjection(folder)).toEqual(folder);
+    vi.mocked(invoke).mockResolvedValue(folder);
+    expect(
+      await getSceneProjection(
+        folder.root.sourceId,
+        folder.root.scanId,
+        folder.root.node.id,
+      ),
+    ).toEqual(folder);
+    expect(invoke).toHaveBeenCalledWith('get_scene_projection', {
+      sourceId: folder.root.sourceId,
+      scanId: folder.root.scanId,
+      folderId: folder.root.node.id,
+    });
+    await expect(
+      getSceneProjection(
+        folder.root.sourceId,
+        folder.root.scanId,
+        'outra-pasta',
+      ),
+    ).rejects.toThrow();
+    await expect(
+      getSceneProjection(folder.root.sourceId, folder.root.scanId),
+    ).rejects.toThrow();
+    for (const breadcrumbs of [
+      [],
+      [folder.breadcrumbs[1]],
+      [...folder.breadcrumbs, folder.breadcrumbs[0]],
+      [{ ...folder.breadcrumbs[0], id: 'outro' }, folder.breadcrumbs[1]],
+    ]) {
+      expect(() => parseSceneProjection({ ...folder, breadcrumbs })).toThrow();
+    }
   });
   it.each([
     null,
@@ -62,6 +97,7 @@ describe('T-051 — contrato limitado da cena e contexto IPC', () => {
     expect(invoke).toHaveBeenCalledExactlyOnceWith('get_scene_projection', {
       sourceId: fixture.root.sourceId,
       scanId: fixture.root.scanId,
+      folderId: null,
     });
     await expect(
       getSceneProjection('outra', fixture.root.scanId),

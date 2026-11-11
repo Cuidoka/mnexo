@@ -707,3 +707,29 @@ dd {
   font-size: 10px;
   color: var(--muted);
 }
+.scene-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 12px;
+}
+.scene-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.45fr);
+  gap: 20px;
+}
+.scene-layout .scene-viewport {
+  height: clamp(300px, 42vw, 500px);
+}
+.scene-viewport canvas:focus-visible {
+  outline: 2px solid #fff3a1;
+  outline-offset: -3px;
+}
+.scene-legend span:nth-child(4) {
+  color: #fff3a1;
+}
+@media (max-width: 1100px) {
+  .scene-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
