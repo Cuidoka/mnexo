@@ -20,11 +20,20 @@ async function ensureDirectory(directory) {
   }
 }
 await ensureDirectory(path.join(root, 'Coleção ç', 'Vazia'));
-for (const [relative, content] of [
+const entries = [
   ['raiz.txt', 'Fixture sintetica MNEXO.\n'],
   ['Coleção ç/notas com espaço.txt', 'Dados de teste.\n'],
   ['Coleção ç/zero.bin', ''],
-]) {
+];
+if (process.argv.includes('--scene')) {
+  for (let index = 1; index <= 9; index += 1) {
+    entries.push([
+      `Coleção ç/cena-${String(index).padStart(2, '0')}.txt`,
+      `Nó sintético ${index}.\n`,
+    ]);
+  }
+}
+for (const [relative, content] of entries) {
   const target = path.join(root, relative);
   try {
     await writeFile(target, content, { flag: 'wx' });

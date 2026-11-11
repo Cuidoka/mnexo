@@ -671,3 +671,39 @@ dd {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.scene-viewport {
+  width: 100%;
+  height: clamp(280px, 46vw, 520px);
+  margin-block: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0c171e;
+}
+.scene-viewport canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.scene-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.scene-legend span:nth-child(1) {
+  color: #81d8cc;
+}
+.scene-legend span:nth-child(2) {
+  color: #98b8f8;
+}
+.scene-legend span:nth-child(3) {
+  color: #edbc7a;
+}
+.scene-panel summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.scene-panel small {
+  font-size: 10px;
+  color: var(--muted);
+}

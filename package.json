@@ -9,6 +9,7 @@
   },
   "scripts": {
     "fixture:prepare": "node scripts/prepare-metadata-fixture.mjs",
+    "fixture:prepare:3d": "node scripts/prepare-metadata-fixture.mjs --scene",
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
@@ -17,6 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:scene:webgl": "node scripts/test-scene-webgl.mjs",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build --no-bundle"
@@ -24,7 +26,8 @@
   "dependencies": {
     "@tauri-apps/api": "2.12.4",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "three": "0.187.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -35,6 +38,7 @@
     "@types/node": "^22.19.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "@types/three": "0.187.0",
     "@vitejs/plugin-react": "6.1.2",
     "eslint": "10.13.0",
     "eslint-plugin-react-hooks": "^7.0.1",

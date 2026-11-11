@@ -53,6 +53,162 @@ fn prepare() -> Fixture {
     }
 }
 
+fn reindex(f: &mut Fixture) {
+    f.scan = f
+        .storage
+        .index_fixture_at(&f.source, &f.root, &LocalFs, Limits::default())
+        .unwrap()
+        .last_scan
+        .unwrap()
+        .scan_id;
+}
+
+#[test]
+fn t003_t050_scene_uses_real_saved_nodes_without_changing_database_or_source() {
+    let mut f = prepare();
+    for index in 0..9 {
+        fs::write(f.root.join(format!("cena-{index}.txt")), b"fixture").unwrap();
+    }
+    reindex(&mut f);
+    let before = fs::read(&f.database).unwrap();
+    let first = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    assert_eq!(first.nodes.len() + 1, 15);
+    assert!(!first.truncated);
+    assert_eq!((first.node_limit, first.depth_limit), (100, 3));
+    let mut parents = std::collections::HashSet::from([first.root.node.id.clone()]);
+    for item in &first.nodes {
+        assert!(parents.contains(item.parent_id.as_ref().unwrap()));
+        assert!(parents.insert(item.id.clone()));
+        let real = f.storage.node_detail(&f.source, &f.scan, &item.id).unwrap();
+        assert_eq!(
+            serde_json::to_value(&real.node).unwrap(),
+            serde_json::to_value(item).unwrap()
+        );
+    }
+    let second = Storage::new(Some(f.database.clone()))
+        .scene_projection(&f.source, &f.scan)
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(first).unwrap(),
+        serde_json::to_value(second).unwrap()
+    );
+    assert_eq!(fs::read(&f.database).unwrap(), before);
+    assert_eq!(fs::read(f.root.join("cena-0.txt")).unwrap(), b"fixture");
+}
+
+#[test]
+fn t050_scene_limits_are_honest_at_100_nodes_and_at_depth_three() {
+    let mut f = prepare();
+    for index in 0..94 {
+        fs::write(f.root.join(format!("cena-{index:03}.txt")), b"").unwrap();
+    }
+    reindex(&mut f);
+    let full = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    assert_eq!(full.nodes.len() + 1, 100);
+    assert!(!full.truncated);
+    fs::write(f.root.join("excedente.txt"), b"").unwrap();
+    reindex(&mut f);
+    let limited = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    assert_eq!(limited.nodes.len() + 1, 100);
+    assert!(limited.truncated);
+    let mut f = prepare();
+    fs::create_dir_all(f.root.join("Coleção ç/Vazia/Nível 3/Nível 4")).unwrap();
+    reindex(&mut f);
+    let limited = f.storage.scene_projection(&f.source, &f.scan).unwrap();
+    assert!(limited.truncated);
+    assert!(limited.nodes.iter().any(|node| node.title == "Nível 3"));
+    assert!(!limited.nodes.iter().any(|node| node.title == "Nível 4"));
+}
+
+#[test]
+fn t050_scene_rejects_stale_snapshot_revocation_invalid_ids_and_corrupt_path() {
+    let mut f = prepare();
+    let previous = f.scan.clone();
+    reindex(&mut f);
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &previous)
+            .unwrap_err()
+            .code,
+        "INDEX_CHANGED"
+    );
+    assert_eq!(
+        f.storage
+            .scene_projection("' OR 1=1", &f.scan)
+            .unwrap_err()
+            .code,
+        "INVALID_CATALOG_REQUEST"
+    );
+    let connection = Connection::open(&f.database).unwrap();
+    connection
+        .execute(
+            "UPDATE nodes SET fs_path='C:\\fora.txt' WHERE source_id=?1 AND kind='file'",
+            [&f.source],
+        )
+        .unwrap();
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &f.scan)
+            .unwrap_err()
+            .code,
+        "INVALID_CATALOG"
+    );
+    f.storage.revoke_source(&f.source).unwrap();
+    assert_eq!(
+        f.storage
+            .scene_projection(&f.source, &f.scan)
+            .unwrap_err()
+            .code,
+        "SOURCE_NOT_AUTHORIZED"
+    );
+}
+
+#[test]
+fn t051_scene_serialization_matches_shared_typescript_contract() {
+    let f = prepare();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/scene-projection.json"
+    ))
+    .unwrap();
+    let root = &expected["root"];
+    let text = |value: &serde_json::Value| value.as_str().unwrap().to_owned();
+    let connection = Connection::open(&f.database).unwrap();
+    connection
+        .execute(
+            "UPDATE nodes SET scan_id=NULL WHERE source_id=?1",
+            [&f.source],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO sources(id,root_path,display_name,enabled) VALUES(?1,?2,?3,1)",
+            params![
+                text(&root["sourceId"]),
+                text(&root["sourceRootPath"]),
+                text(&root["sourceName"])
+            ],
+        )
+        .unwrap();
+    connection.execute("INSERT INTO scan_reports(source_id,scan_id,completed_at,files_count,folders_count,total_bytes,skipped_count,error_count,partial) VALUES(?1,?2,?3,10,2,9007199254740993,0,0,0)", params![text(&root["sourceId"]),text(&root["scanId"]),text(&root["indexedAt"])]).unwrap();
+    let mut paths: std::collections::HashMap<String, PathBuf> = std::collections::HashMap::new();
+    for item in std::iter::once(&root["node"]).chain(expected["nodes"].as_array().unwrap()) {
+        let id = text(&item["id"]);
+        let parent = item["parentId"].as_str();
+        let path = if let Some(parent) = parent {
+            PathBuf::from(paths.get(parent).unwrap()).join(text(&item["title"]))
+        } else {
+            PathBuf::from(text(&root["path"]))
+        };
+        paths.insert(id.clone(), path.clone());
+        connection.execute("INSERT INTO nodes(id,parent_id,kind,origin,title,source_id,fs_path,fs_path_key,size_bytes,size_partial,fs_modified_at_ms,fs_created_at_ms,scan_id) VALUES(?1,?2,?3,'filesystem',?4,?5,?6,?7,?8,?9,?10,?11,?12)", params![id,parent,text(&item["kind"]),text(&item["title"]),text(&root["sourceId"]),path.to_str().unwrap(),if parent.is_none() { ".".to_owned() } else { id.clone() },text(&item["sizeBytes"]).parse::<i64>().unwrap(),item["sizePartial"].as_bool().unwrap(),item["modifiedAtMs"].as_str(),if parent.is_none() { Some("0") } else { None },text(&root["scanId"])]).unwrap();
+    }
+    let actual = f
+        .storage
+        .scene_projection(&text(&root["sourceId"]), &text(&root["scanId"]))
+        .unwrap();
+    assert_eq!(serde_json::to_value(actual).unwrap(), expected);
+}
+
 #[test]
 fn t003_t004_t009_t044_navigate_real_index_with_breadcrumbs_parent_and_empty_folder() {
     let f = prepare();

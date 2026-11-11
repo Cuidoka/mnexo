@@ -32,6 +32,7 @@ pub fn run() {
             commands::scans::cancel_scan,
             commands::catalog::get_node_children,
             commands::catalog::get_node_detail,
+            commands::catalog::get_scene_projection,
         ])
         .run(tauri::generate_context!())
         .expect("Falha ao iniciar o MNEXO");
