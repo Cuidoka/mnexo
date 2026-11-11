@@ -1,5 +1,18 @@
 # Changelog
 
+## Em desenvolvimento — 2026-11-11
+
+### MVP-007 / RF-003 — cena 3D inicial com índice real
+
+- Adicionado `get_scene_projection` por sourceId/scanId, com autorização e leitura consistente do SQLite. Projeção em largura, pais antes de filhos, até 100 nós incluindo a raiz e 3 níveis abaixo dela, com truncamento explícito.
+- Criada cena Three.js local com câmera fixa, volumes de pastas contendo seus filhos e arquivos em escala comprimida. UUIDs do backend identificam os grupos; layout não cria identidade ou acessa caminhos da fonte.
+- Integrado botão Ver cena 3D em Fontes, contagem/data/legenda, relação textual acessível de nomes/IDs/pais/bytes, avisos de índice parcial e retorno ao índice 2D. Revogação fecha a cena; mudança de snapshot remonta a consulta.
+- Renderer sob demanda, redesenho ao redimensionar, tratamento de falha/perda de WebGL 2 e descarte de observador, geometrias, materiais, renderer e contexto ao fechar. Sem loop de animação ocioso.
+- Fixados Three.js e tipos em 0.187.0; licença MIT, sem serviço remoto, custo por uso ou permissão genérica. Mantidos schema 2, CSP, scanner restrito à fixture e IA desativada.
+- Acrescentados preparo opcional de fixture com 15 nós e teste repetível WebGL 2 em Chromium headless isolado (12/100 nós). T-050 a T-055 rastreiam backend, contrato Rust/TS, contenção, ciclo de vida, UI e validação gráfica. ADR 0007 permanece **proposto**.
+
+Resultados e restrições: `docs/08_TESTES_E_CRITERIOS.md`. Próximo incremento: MVP-008 / RF-004.
+
 ## Em desenvolvimento — 2026-11-09
 
 ### MVP-006 / RF-006 — índice 2D e painel de metadados

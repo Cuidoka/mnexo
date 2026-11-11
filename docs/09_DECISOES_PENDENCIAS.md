@@ -19,6 +19,8 @@ Na sequência, o usuário autorizou explicitamente o **MVP-002 — SQLite com mi
 
 ## Propostas técnicas
 
+Em 11/11/2026, o usuário autorizou **MVP-007 / RF-003**: cena 3D inicial usando nós reais do índice. A base é a main `836463c`, com PR #3 do MVP-006 integrada. A implementação mantém consulta de metadados por IDs, autorização de fontes e scanner restrito à fixture. O fluxo já autorizado inclui commit detalhado, push, PR e merge após validação. Não autoriza iniciar MVP-008/009 ou indexar fontes pessoais.
+
 Em 09/11/2026, o usuário autorizou **MVP-006 / RF-006**: árvore/lista 2D, breadcrumbs e painel de metadados reais. A implementação consulta os snapshots confirmados do catálogo e mantém o scanner restrito à fixture; não autoriza novos índices pessoais, conteúdo, 3D ou tarefas seguintes. A base é a main `af4ec1e`, com PR #2 do MVP-005 integrada.
 
 Em 09/11/2026, o usuário autorizou **MVP-005 / RNF-002**: progresso, status e cancelamento do scan. Também solicitou que a IA passe a aceitar/integrar as PRs no GitHub; informou já ter integrado manualmente a PR anterior. A PR #1 está na main (`08bf305`), verificada por fetch. O fluxo passa a ser validação, commit detalhado, push, abertura e merge da PR, respeitando os checks/regras do repositório. Isso não concede autorização para começar o ticket seguinte.
@@ -29,7 +31,7 @@ Em 09/11/2026, o usuário autorizou o **MVP-003 / RF-001**: selecionar e autoriz
 
 P-001 (Windows primeiro) e P-002 (Tauri/Rust/React) estão sendo exercitados neste protótipo autorizado. A escolha definitiva de arquitetura continua sujeita à validação; ver ADR 0001, **proposto**.
 
-O uso de SQLite foi autorizado para o MVP-002 (parte de P-003). O desenho específico do schema, driver e migrações está documentado nos ADRs 0002/0004, **propostos**; FTS5 foi validado em testes, sem busca do produto. As demais propostas de P-003 e P-004 a P-010 mantêm seu estado original. Não há aprovação de provedor/modelo de IA, envio de dados, integração de chave, indexação de fontes pessoais ou bibliotecas 3D neste incremento.
+O uso de SQLite foi autorizado para o MVP-002 (parte de P-003). O desenho específico do schema, driver e migrações está documentado nos ADRs 0002/0004, **propostos**; FTS5 foi validado em testes, sem busca do produto. O MVP-007 exercita Three.js diretamente no React; escolha de biblioteca, layout e limites permanecem **propostos** no ADR 0007, sem aprovação geral de React Three Fiber ou arquitetura definitiva. As demais propostas de P-003 e P-004 a P-010 mantêm seu estado original. Não há aprovação de provedor/modelo de IA, envio de dados, integração de chave ou indexação de fontes pessoais.
 
 ## Pendências
 
@@ -41,5 +43,6 @@ O uso de SQLite foi autorizado para o MVP-002 (parte de P-003). O desenho espec�
 - ADR 0004 mantém **propostos** a política de exclusões/limites, o caminho de fixture vinculado ao checkout e o snapshot identificado por UUID. Não há garantia contra troca maliciosa de ancestrais entre chamadas do filesystem; ampliar o escopo exige revisar essa fronteira.
 - RNF-002 ganha job assíncrono, acompanhamento e cancelamento cooperativo no MVP-005. T-007 define reinício explícito do zero após cancelamento; não representa pausa/retomada incremental nem conclusão de RNF-010. O slot em memória, polling e fronteira de publicação estão no ADR 0005, **proposto**. A indexação continua restrita à mesma fixture autorizada, sem nova migração.
 - RF-006 passa a ter consulta 2D dos nós filesystem de uma fonte habilitada com snapshot confirmado: caminho, tipo, tamanho, datas, pai e origem, incluindo indicação de índice salvo/parcialidade. A lista hierárquica/breadcrumbs não constituem cena 3D nem abertura de arquivos. O contrato paginado e a política de snapshot/autorização estão no ADR 0006, **proposto**; schema permanece 2.
+- RF-003 ganha cena inicial com nós reais do snapshot, pastas envolvendo seus filhos, câmera fixa e projeção limitada. T-050 a T-055 cobrem consulta, identidade/parentesco, contenção, descarte e WebGL. Órbita/zoom/seleção/navegação visual (RF-004) e isolar/reintegrar (RF-005) permanecem pendentes. Não há escala física de bytes ou garantia de renderização em todo driver; o índice 2D é a alternativa. ADR 0007 permanece **proposto**, schema 2.
 - Persistência de ideias com conteúdo, FTS do produto, backups/restauração, identidade de filesystem e validações de hierarquia entre fontes/ciclos longos continuam pendentes antes dos tickets que expuserem essas operações.
 - O repositório na pasta do usuário é distinto do novo repositório local MNEXO; nenhuma configuração desse repositório externo foi modificada.

@@ -7,6 +7,11 @@ import report from '../../../tests/fixtures/scan-report.json';
 import job from '../../../tests/fixtures/scan-job.json';
 import { rootPage, folderPage } from '../../../tests/catalog-fixtures';
 import { getNodeChildren } from '../../shared/api/catalog';
+import sceneFixture from '../../../tests/fixtures/scene-projection.json';
+import {
+  getSceneProjection,
+  parseSceneProjection,
+} from '../../shared/api/scene';
 import {
   getScanStatus,
   startScan,
@@ -44,6 +49,13 @@ vi.mock('../../shared/api/catalog', async (importOriginal) => ({
   getNodeChildren: vi.fn(),
   getNodeDetail: vi.fn(),
 }));
+vi.mock('../../shared/api/scene', async (original) => ({
+  ...(await original<typeof import('../../shared/api/scene')>()),
+  getSceneProjection: vi.fn(),
+}));
+vi.mock('../scene/SceneCanvas', () => ({
+  SceneCanvas: () => <p>Canvas simulado neste teste</p>,
+}));
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -53,6 +65,81 @@ beforeEach(() => {
   vi.mocked(addScanSource).mockResolvedValue(parseSource(source));
   vi.mocked(cancelScanSourceSelection).mockResolvedValue(undefined);
   vi.mocked(getNodeChildren).mockResolvedValue(rootPage);
+  vi.mocked(getSceneProjection).mockResolvedValue(
+    parseSceneProjection(sceneFixture),
+  );
+});
+
+it('T-054 — abre 3D só por clique, passa IDs do snapshot, oferece 2D e fecha ao revogar', async () => {
+  const indexed = parseSource({
+    ...source,
+    fixtureEligible: true,
+    lastScan: report,
+  });
+  vi.mocked(listScanSources).mockResolvedValue([indexed]);
+  vi.mocked(revokeScanSource).mockResolvedValue({
+    ...indexed,
+    authorized: false,
+  });
+  const user = userEvent.setup();
+  render(<SourcesPanel available />);
+  await screen.findByRole('button', {
+    name: `Ver cena 3D de ${source.displayName}`,
+  });
+  expect(getSceneProjection).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole('button', {
+      name: `Ver cena 3D de ${source.displayName}`,
+    }),
+  );
+  expect(await screen.findByText(/12 nós reais/)).toBeInTheDocument();
+  expect(getSceneProjection).toHaveBeenCalledWith(source.id, report.scanId);
+  expect(startScan).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Ver índice 2D' }));
+  expect(await screen.findByRole('table')).toBeInTheDocument();
+  expect(
+    screen.queryByText('Canvas simulado neste teste'),
+  ).not.toBeInTheDocument();
+  await user.click(
+    screen.getByRole('button', {
+      name: `Ver cena 3D de ${source.displayName}`,
+    }),
+  );
+  await screen.findByText(/12 nós reais/);
+  await user.click(
+    screen.getByRole('button', {
+      name: `Revogar autorização de ${source.displayName}`,
+    }),
+  );
+  expect(
+    screen.queryByText('Canvas simulado neste teste'),
+  ).not.toBeInTheDocument();
+});
+
+it('T-054 — atualizar fontes após novo scan remonta a projeção com o novo snapshot', async () => {
+  const indexed = parseSource({
+    ...source,
+    fixtureEligible: true,
+    lastScan: report,
+  });
+  const nextScan = '00000000-0000-4000-8000-000000000099';
+  vi.mocked(listScanSources)
+    .mockResolvedValueOnce([indexed])
+    .mockResolvedValue([
+      { ...indexed, lastScan: { ...indexed.lastScan!, scanId: nextScan } },
+    ]);
+  const user = userEvent.setup();
+  render(<SourcesPanel available />);
+  await user.click(
+    await screen.findByRole('button', {
+      name: `Ver cena 3D de ${source.displayName}`,
+    }),
+  );
+  await screen.findByText(/12 nós reais/);
+  await user.click(screen.getByRole('button', { name: 'Atualizar catálogo' }));
+  await screen.findByText(/12 nós reais/);
+  expect(getSceneProjection).toHaveBeenLastCalledWith(source.id, nextScan);
+  expect(startScan).not.toHaveBeenCalled();
 });
 
 describe('T-046/T-048 — integração do catálogo com fontes e snapshots', () => {

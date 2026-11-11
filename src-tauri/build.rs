@@ -12,6 +12,7 @@ fn main() {
             "cancel_scan",
             "get_node_children",
             "get_node_detail",
+            "get_scene_projection",
         ]),
     ))
     .expect("Falha na preparação do aplicativo Tauri");

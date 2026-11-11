@@ -41,3 +41,14 @@ pub(crate) struct NodePage {
     pub items: Vec<NodeSummary>,
     pub next_cursor: Option<String>,
 }
+
+/// RF-003 / T-050: projeção de um único snapshot; a raiz conta no limite.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SceneProjection {
+    pub root: NodeDetail,
+    pub nodes: Vec<NodeSummary>,
+    pub node_limit: usize,
+    pub depth_limit: usize,
+    pub truncated: bool,
+}

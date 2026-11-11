@@ -1,10 +1,22 @@
 use tauri::State;
 
 use crate::{
-    catalog::{NodeDetail, NodePage},
+    catalog::{NodeDetail, NodePage, SceneProjection},
     sources::SourceError,
     storage::Storage,
 };
+
+#[tauri::command]
+pub(crate) async fn get_scene_projection(
+    source_id: String,
+    scan_id: String,
+    storage: State<'_, Storage>,
+) -> Result<SceneProjection, SourceError> {
+    let storage = storage.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || storage.scene_projection(&source_id, &scan_id))
+        .await
+        .map_err(|_| SourceError::new("CATALOG_UNAVAILABLE"))?
+}
 
 #[tauri::command]
 pub(crate) async fn get_node_children(

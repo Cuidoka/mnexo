@@ -1,4 +1,4 @@
-# Arquitetura — estado do MVP-006
+# Arquitetura — estado do MVP-007
 
 Fonte da proposta completa: seção 03 de `../ESPECIFICACAO_COMPLETA.md`. Este documento registra apenas o incremento implementado e não substitui a especificação.
 
@@ -118,6 +118,18 @@ O worker valida UUIDs, autorização e scan_id corrente e abre transação DEFER
 O painel de detalhes mostra metadados salvos com data do índice, não presença/estado atual do arquivo. A lista diferencia pasta vazia de pasta parcial sem filhos e sinaliza tamanhos parciais. Datas são locais e bytes usam BigInt apenas para apresentação exata. Nomes/caminhos ficam como texto React. Nenhum conteúdo, abertura de arquivo no SO, busca, edição ou cena 3D é exposto.
 
 Na UI, versões de requisição descartam detalhes e páginas adicionais que chegam depois de navegar. Trocar snapshot remonta o navegador na raiz; revogar fecha o catálogo e bloqueia as próximas consultas no backend. Atualizar catálogo relê fonte/relatório, sem scan. Não há persistência de seleção/caminho visual; o schema permanece 2. ADR 0006, **proposto**, registra decisões. T-003/T-004/T-008/T-009 e T-044 a T-048 verificam contexto, paginação, snapshots, integridade e UI.
+
+## Cena inicial 3D (MVP-007 / RF-003)
+
+`get_scene_projection(sourceId, scanId)` é o único comando novo, concedido à janela main. O worker reaproveita validações de fonte habilitada, snapshot corrente e caminhos lexicais do catálogo, numa transação DEFERRED. Não consulta filesystem da fonte e não recebe caminhos, SQL ou opções de layout. Retorna SceneProjection: root (NodeDetail), nodes (NodeSummary sem a raiz), nodeLimit=100, depthLimit=3 e truncated boolean.
+
+A consulta percorre em largura, com ordenação pasta/título BINARY/UUID e pais antes de filhos. Raiz conta no limite; cada consulta de filhos lê só o orçamento restante mais um sentinela. Pastas na fronteira consultam um sentinela para informar truncamento, sem estimar quantos itens faltam. Apenas source_id/scan_id/origin filesystem/tipos file-folder atuais entram na projeção. Relação de caminho pai-filho e repetição de IDs são verificadas. Profundidade visual é independente dos limites do scanner; linhas antigas continuam preservadas no banco.
+
+`shared/api/scene.ts` valida contexto, limites, IDs únicos, tipos/pais e profundidade. `scene-layout.ts` calcula volumes aninhados determinísticos, sem mudar dados ou identidade. Pastas são contornos com base, dimensionados para conter os filhos. Arquivos usam escala logarítmica comprimida de bytes, com mínimo visível para zero/null; a relação HTML apresenta os valores exatos como strings/BigInt. Tamanho parcial tem cor e texto próprios. Não existe preenchimento fictício para atingir dez nós.
+
+`ScenePanel` consulta apenas após clique explícito e remonta por sourceId/scanId. O renderer é carregado sob demanda por React.lazy/Suspense. Three.js 0.187.0 é usado diretamente, sem React Three Fiber neste incremento. `scene-renderer.ts` cria grupos com userData.nodeId do backend, câmera perspectiva fixa enquadrada pela esfera da raiz, luzes locais e geometrias/materiais compartilhados. ResizeObserver redesenha e reenquadra; pixel ratio é limitado a 2. Não há animação contínua, controles orbitais, raycasting, mudança de hierarquia ou gravação da cena.
+
+Fechar/revogar desmonta a sessão e libera listener, observador, canvas, geometria, materiais, renderer e contexto. Falha de criação/render/perda de WebGL informa indisponibilidade sem expor erro bruto; o botão Ver índice 2D mantém a consulta acessível. CSP e schema 2 permanecem; nenhum asset remoto ou nova permissão genérica. A cena é representação dos metadados confirmados, não prova de presença atual no disco. ADR 0007, **proposto**, registra escolhas e rollback. Testes T-050 a T-055 distinguem SQLite real, UI com mocks e WebGL real em Chromium headless.
 
 ## Rastreabilidade e limites do conjunto
 

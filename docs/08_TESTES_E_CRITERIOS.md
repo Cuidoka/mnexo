@@ -311,3 +311,56 @@ Nova abertura independente do SQLite após a tentativa retornou o mesmo scan_id 
 ### Limites
 
 RF-006 cobre nós filesystem do catálogo confirmado de fonte habilitada; o scanner continua limitado à fixture. Não há prévia/abertura de conteúdo, abertura no SO, busca, edição, expansão recursiva automática, árvore 3D, seleção persistida ou reconciliação de renomeações. T-004 relativo à abertura de arquivos e T-008 relativo a ideias continuam pendentes. Não foram testados GUI nativa completa, leitor de tela real, outras máquinas, volumes externos, corrupção física do banco ou benchmarks de grandes catálogos. ADR 0006 permanece **proposto**. A pasta docs/design fica fora do incremento.
+
+## MVP-007 / RF-003 — cena 3D inicial (11/11/2026)
+
+Base: main `836463c`, com MVP-006 integrado pela PR #3. O incremento consulta somente o snapshot do índice autorizado. Nenhuma permissão de scanner pessoal, conteúdo, rede ou IA foi acrescentada; schema continua 2. ADR 0007 permanece **proposto**.
+
+### Rastreabilidade e fronteiras
+
+| ID                     | Verificação real                                                                                                                                                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RF-003 / T-003 / T-050 | Fixture filesystem sintética indexada em SQLite real com 15 nós; projeção preserva UUID, pai, metadados e ordenação determinística após reabrir; bytes do banco e arquivo sintético permanecem iguais.                                                                                                                                        |
+| T-050                  | Exatamente 100 nós não anuncia truncamento; 101 nós limita a 100 incluindo raiz e anuncia itens omitidos. Descendente no nível 4 é omitido, com aviso, preservando pais até nível 3.                                                                                                                                                          |
+| T-050                  | Snapshot anterior, autorização revogada, UUID/injeção inválido e caminho corrompido são recusados. Leituras reutilizam filtros fonte/snapshot e validações do catálogo; dados retidos de scans anteriores não entram na cena.                                                                                                                 |
+| T-051                  | Contrato SceneProjection compartilhado Rust/TS: raiz, filhos, limites, truncamento, UUIDs/parentesco e bytes acima de 2^53. Frontend recusa pais ausentes/cíclicos/arquivo, duplicações, ordem/depth inválidos, limites alterados, tipo de bytes incorreto e contexto sourceId/scanId trocado. Browser sem Tauri não oferece índice fictício. |
+| RF-003 / T-052         | Layout determinístico contém os filhos em todos os três eixos, conserva cada ID/pai e não altera a projeção. Pasta vazia e arquivos zero/null/i64 máximo permanecem visíveis com medidas finitas; sem criar novos IDs.                                                                                                                        |
+| T-053                  | UI com mock de renderer: StrictMode monta uma única sessão válida; desmontagem descarta a sessão. Falha/perda de contexto informa alternativa 2D sem exibir erro bruto ou sucesso gráfico fictício.                                                                                                                                           |
+| T-054                  | UI com mocks de IPC: abrir só por clique, passar sourceId/scanId, contagem/snapshot, relação textual/bytes exatos, parcialidade/truncamento, retorno 2D, fechar/revogar, erro de snapshot e atualização para novo scan. Resposta atrasada após fechar não reabre a cena; nenhum teste inicia scan por abrir/atualizar cena.                   |
+| T-055                  | Renderer de produção em Chrome headless, WebGL 2 real via ANGLE/SwiftShader, fixture JSON sintética de 12 e 100 nós. Pixels exibem geometria, sem erro WebGL; dispose duplo é seguro, canvas é removido e contexto liberado. Evento de perda de contexto descarta sessão e aciona fallback.                                                   |
+
+Os testes Rust criam fontes/bancos em `.tools/test-data`; alterações SQL adversas são restritas a esses bancos sintéticos. A fixture JSON compartilhada não é usada para preencher a cena do produto. O harness gráfico não acessa IPC, SQLite do aplicativo ou perfil pessoal do navegador. Não se afirma que esse harness comprova o caminho de integração nativo completo.
+
+### Comandos e resultados observados
+
+| Comando                                                                                             | Resultado real                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test`                                                                                         | 14 arquivos, **135 testes passaram**, zero falhas.                                                                                                                                           |
+| `cargo test --manifest-path src-tauri/Cargo.toml --locked --offline`                                | **55 testes passaram**, zero falhas, incluindo testes Windows com junções sintéticas.                                                                                                        |
+| `pnpm typecheck` e `pnpm lint`                                                                      | Passaram.                                                                                                                                                                                    |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --all-targets -- -D warnings` | Passou.                                                                                                                                                                                      |
+| `pnpm desktop:build`                                                                                | Passou: frontend com 37 módulos e executável Windows release. Chunk 3D separado: 539,55 kB minificados / 134,25 kB gzip; Vite avisou tamanho acima de 500 kB.                                |
+| `pnpm test:scene:webgl`                                                                             | Passou com 12/100 nós. WebGL 2 real, 80/91 cores amostradas; descarte e perda de contexto passaram nos dois casos. Imagem inspecionada visualmente, com volumes aninhados/arquivos visíveis. |
+| `pnpm fixture:prepare:3d`                                                                           | Preparou 12 arquivos e 3 pastas, 203 bytes, somente na fixture fixa; preservou arquivos existentes e não atualizou o índice automaticamente.                                                 |
+
+Cargo foi executado com `Use-LocalRust.ps1` e `CARGO_INCREMENTAL=0` no processo. A primeira compilação apontou que usize não implementa ToSql; o limite foi convertido para u32 (máximo 100). TypeScript inicialmente inferiu apenas o tipo folder no mapa de pais; o mapa ganhou o tipo explícito file/folder. No primeiro teste StrictMode, o mock não interceptou corretamente o import dinâmico; o carregamento sob demanda foi movido para React.lazy/Suspense no painel, preservando a validação da sessão por import estático. Repetições completas passaram. O primeiro build sem ativar o Rust local falhou por cargo ausente no PATH; após ativar o ambiente, o build completo passou.
+
+O teste gráfico usa o Chrome instalado (156.0.8078.80), perfil novo e servidor apenas em 127.0.0.1, com ANGLE/SwiftShader e sem desabilitar o sandbox do navegador. Evidências ignoradas pelo Git: `.tools/scene-webgl-vagUOB/scene.png` e `dom.html`. Nenhuma imagem foi gerada por IA; trata-se de captura do renderer real com dados sintéticos declarados.
+
+`pnpm format:check`, `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` e `git diff --check` passaram. Revisão da capability e manifesto gerado confirmou exatamente 12 comandos específicos, incluindo get_scene_projection, somente na janela main/origem local. Não foram acrescentadas permissões genéricas. A normalização de formatação do checkout operou sobre arquivos rastreados/novos da tarefa, respeitando os ignores e preservando docs/design e os três originais.
+
+### Inspeção nativa e limite observado
+
+O executável release abriu e a inspeção confirmou banco Pronto, IA Desativado, relatório antigo da fixture e botão Ver cena 3D. Ao interagir, Computer Use retornou `user input was detected in this window; call get_window_state before continuing`. Após reobservar e recuperar o alvo, a tentativa seguinte retornou a mesma interação concorrente. A verificação foi encerrada para preservar o controle do usuário; não houve clique de scan confirmado. Cena e retorno 2D no WebView2 nativo: **NÃO TESTADOS** nesta entrega.
+
+Consultas independentes somente leitura antes/depois confirmaram o mesmo checksum do SQLite, schema 2, três fontes, seis nós da fixture, um relatório (3 arquivos/3 pastas/41 bytes/zero ocorrências), integridade ok e zero violações de FK. Nós de outras fontes: zero. Isso confirma que a preparação dos nove arquivos extras não iniciou scan, nem alterou o índice/banco. Para ver os 15 nós novos no aplicativo, ainda é necessário clicar explicitamente para reindexar a fixture.
+
+### Repetir manualmente e limites
+
+1. Preparar a fixture com `pnpm fixture:prepare:3d`, selecionar/autorizar a raiz fixa se necessário e indexar por clique explícito.
+2. Conferir 12 arquivos/3 pastas no relatório; clicar Ver cena 3D deve mostrar 15 nós reais, câmera fixa e pastas contendo filhos.
+3. Expandir a relação textual e conferir UUIDs/pais/bytes; comparar com os mesmos itens no índice 2D. Abrir/fechar/atualizar a cena não deve iniciar scan.
+4. Redimensionar a janela, fechar/reabrir a cena e verificar o enquadramento. Revogar apenas a fixture deve fechar a cena; nenhuma fonte pessoal precisa ser consultada ou alterada.
+5. Em ambiente sem WebGL 2/perda de contexto, conferir mensagem e usar Ver índice 2D.
+
+Não testados: cena/IPC no WebView2 nativo completo, GPU física/outros drivers, outras máquinas, leitor de tela real e benchmarks de grandes índices. Órbita/zoom/seleção/navegação 3D, isolamento/reintegração e persistência da cena permanecem nos tickets seguintes. A pasta docs/design e os três documentos originais ficam fora do incremento.

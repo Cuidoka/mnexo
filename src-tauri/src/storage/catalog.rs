@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashSet, VecDeque},
     path::{Component, Path},
 };
 
@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::{Storage, StorageError};
 use crate::{
-    catalog::{Breadcrumb, NodeDetail, NodePage, NodeSummary},
+    catalog::{Breadcrumb, NodeDetail, NodePage, NodeSummary, SceneProjection},
     sources::{display_path, SourceError},
 };
 
@@ -187,6 +187,76 @@ fn detail(context: &Context, item: Node, chain: &[Breadcrumb]) -> NodeDetail {
 }
 
 impl Storage {
+    pub(crate) fn scene_projection(
+        &self,
+        source_id: &str,
+        scan_id: &str,
+    ) -> Result<SceneProjection, SourceError> {
+        const NODE_LIMIT: usize = 100;
+        const DEPTH_LIMIT: usize = 3;
+        let (source_id, scan_id) = (uuid(source_id)?, uuid(scan_id)?);
+        let mut handle = self.database().map_err(SourceError::database)?;
+        let transaction = handle.connection.transaction().map_err(database)?;
+        let context = context(&transaction, &source_id, &scan_id)?;
+        let sql = format!(
+            "SELECT {COLUMNS} FROM nodes WHERE source_id=?1 AND scan_id=?2
+            AND fs_path_key='.' AND parent_id IS NULL AND kind='folder' AND origin='filesystem'"
+        );
+        let root = transaction
+            .query_row(&sql, params![source_id, scan_id], row)
+            .optional()
+            .map_err(database)?
+            .ok_or_else(|| SourceError::new("INDEX_EMPTY"))?;
+        validate_path(&root, &context)?;
+        let chain = breadcrumbs(&transaction, &context, &root)?;
+        let mut queue = VecDeque::from([(root.summary.id.clone(), root.path.clone(), 0)]);
+        let mut seen = HashSet::from([root.summary.id.clone()]);
+        let mut nodes = Vec::new();
+        let mut truncated = false;
+        let sql = format!(
+            "SELECT {COLUMNS} FROM nodes WHERE source_id=?1 AND scan_id=?2
+            AND parent_id=?3 AND origin='filesystem' AND kind IN ('folder','file')
+            ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, title COLLATE BINARY, id LIMIT ?4"
+        );
+        let mut statement = transaction.prepare(&sql).map_err(database)?;
+        while let Some((parent_id, parent_path, depth)) = queue.pop_front() {
+            let remaining = if depth == DEPTH_LIMIT {
+                0
+            } else {
+                NODE_LIMIT - 1 - nodes.len()
+            };
+            // Mesmo no limite, ler um sentinela permite anunciar truncamento sem inventar contagens.
+            let children = statement
+                .query_map(
+                    params![source_id, scan_id, parent_id, (remaining + 1) as u32],
+                    row,
+                )
+                .map_err(database)?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(database)?;
+            truncated |= children.len() > remaining;
+            for item in children.into_iter().take(remaining) {
+                validate_path(&item, &context)?;
+                if !seen.insert(item.summary.id.clone())
+                    || Path::new(&item.path).parent() != Some(Path::new(&parent_path))
+                {
+                    return Err(SourceError::new("INVALID_CATALOG"));
+                }
+                if item.summary.kind == "folder" {
+                    queue.push_back((item.summary.id.clone(), item.path, depth + 1));
+                }
+                nodes.push(item.summary);
+            }
+        }
+        Ok(SceneProjection {
+            root: detail(&context, root, &chain),
+            nodes,
+            node_limit: NODE_LIMIT,
+            depth_limit: DEPTH_LIMIT,
+            truncated,
+        })
+    }
+
     pub(crate) fn node_detail(
         &self,
         source_id: &str,

@@ -12,10 +12,12 @@ import {
 import { ScanReportView } from './ScanReportView';
 import { ScanJobsPanel } from './ScanJobsPanel';
 import { CatalogBrowser } from '../catalog/CatalogBrowser';
+import { ScenePanel } from '../scene/ScenePanel';
 
 export function SourcesPanel({ available }: { available: boolean }) {
   const [sources, setSources] = useState<ScanSource[]>([]);
   const [browsingId, setBrowsingId] = useState<string | null>(null);
+  const [sceneId, setSceneId] = useState<string | null>(null);
   const [selection, setSelection] = useState<FolderSelection | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -117,6 +119,7 @@ export function SourcesPanel({ available }: { available: boolean }) {
     try {
       const changed = await revokeScanSource(source.id);
       setBrowsingId((current) => (current === changed.id ? null : current));
+      setSceneId((current) => (current === changed.id ? null : current));
       setSources((items) =>
         items.map((item) => (item.id === changed.id ? changed : item)),
       );
@@ -134,6 +137,9 @@ export function SourcesPanel({ available }: { available: boolean }) {
   const browsing = sources.find(
     (source) =>
       source.id === browsingId && source.authorized && source.lastScan,
+  );
+  const scene = sources.find(
+    (source) => source.id === sceneId && source.authorized && source.lastScan,
   );
   return (
     <section className="sources-card" aria-labelledby="sources-title">
@@ -227,9 +233,28 @@ export function SourcesPanel({ available }: { available: boolean }) {
                     type="button"
                     disabled={disabled || selection !== null}
                     aria-label={`Explorar índice de ${source.displayName}`}
-                    onClick={() => setBrowsingId(source.id)}
+                    onClick={() => {
+                      setSceneId(null);
+                      setBrowsingId(source.id);
+                    }}
                   >
                     Explorar índice 2D
+                  </button>
+                )}
+              {source.authorized &&
+                source.lastScan &&
+                source.lastScan.foldersCount > 0 && (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={disabled || selection !== null}
+                    aria-label={`Ver cena 3D de ${source.displayName}`}
+                    onClick={() => {
+                      setBrowsingId(null);
+                      setSceneId(source.id);
+                    }}
+                  >
+                    Ver cena 3D
                   </button>
                 )}
               {source.authorized && (
@@ -256,6 +281,21 @@ export function SourcesPanel({ available }: { available: boolean }) {
           sourceName={browsing.displayName}
           onClose={() => setBrowsingId(null)}
           onRefresh={refreshAfterScan}
+        />
+      )}
+
+      {available && scene?.lastScan && (
+        <ScenePanel
+          key={`${scene.id}:${scene.lastScan.scanId}`}
+          sourceId={scene.id}
+          scanId={scene.lastScan.scanId}
+          sourceName={scene.displayName}
+          onClose={() => setSceneId(null)}
+          onRefresh={refreshAfterScan}
+          onOpen2D={() => {
+            setBrowsingId(scene.id);
+            setSceneId(null);
+          }}
         />
       )}
 
